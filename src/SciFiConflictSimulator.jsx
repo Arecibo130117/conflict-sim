@@ -1290,7 +1290,7 @@ const Chart = ({ history, maxVal, key1, key2, color1, color2, label1, label2, re
 
             {/* Legend - Manually placed in top right */}
             <g transform="translate(680, 10)">
-              <rect x="0" y="0" width="115" height="60" fill="#1e293b" rx="5" ry="5" opacity="0.8" />
+              <rect x="0" y="0" width="110" height="40" fill="#1e293b" rx="5" ry="5" opacity="0.8" />
               <circle cx="10" cy="10" r="4" fill={color1} />
               <text x="20" y="14" fontSize="10" fill="white">{label1}</text>
               <circle cx="10" cy="30" r="4" fill={color2} />
