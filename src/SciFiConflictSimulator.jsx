@@ -418,20 +418,22 @@ const SciFiConflictSimulator = () => {
           if (warStatus === 'PEACE' && c1.population > 0 && c2.population > 0) {
               const diplomacyFactor = (c1.diplomacy + c2.diplomacy) / 200; 
               const baseTradeAmount = 50 * diplomacyFactor;
-              
+
               let tradeC1 = 0;
               let tradeC2 = 0;
-              
+
               if (c1.resources < c2.resources) {
+                  // c2 -> c1
                   tradeC1 = Math.min(baseTradeAmount, c2.resources * 0.1);
                   tradeC2 = -tradeC1;
               } else if (c2.resources < c1.resources) {
+                  // c1 -> c2
                   tradeC2 = Math.min(baseTradeAmount, c1.resources * 0.1);
                   tradeC1 = -tradeC2;
               }
-              
+
               const techShare = 0.05 * diplomacyFactor;
-              
+
               setCiv1(prev => ({
                   ...prev, 
                   resources: prev.resources + tradeC1,
@@ -442,13 +444,54 @@ const SciFiConflictSimulator = () => {
                   resources: prev.resources + tradeC2,
                   technology: prev.technology + (c1.technology > prev.technology ? techShare : 0)
               }));
-              
+
+              // GREEN TRADE PROJECTILES (peace-time resource exchange visualization)
+              const tradeProjectiles = [];
+              const MAX_PROJECTILES = 400;
+              const TRADE_SCALE = 20; // larger value -> fewer bullets per trade
+              const MAX_TRADE_SHOTS = 25;
+
+              if (tradeC1 > 0) {
+                  // Resources moved from Civ 2 (right) to Civ 1 (left)
+                  const shots = Math.min(MAX_TRADE_SHOTS, Math.max(1, Math.floor(tradeC1 / TRADE_SCALE)));
+                  for (let i = 0; i < shots; i++) {
+                      tradeProjectiles.push({
+                          id: Date.now() + Math.random() + `tL${i}`,
+                          direction: 'left',
+                          progress: 0,
+                          spreadAngle: (Math.random() - 0.5) * 0.4,
+                          color: '#22c55e' // emerald-500
+                      });
+                  }
+              }
+
+              if (tradeC2 > 0) {
+                  // Resources moved from Civ 1 (left) to Civ 2 (right)
+                  const shots = Math.min(MAX_TRADE_SHOTS, Math.max(1, Math.floor(tradeC2 / TRADE_SCALE)));
+                  for (let i = 0; i < shots; i++) {
+                      tradeProjectiles.push({
+                          id: Date.now() + Math.random() + `tR${i}`,
+                          direction: 'right',
+                          progress: 0,
+                          spreadAngle: (Math.random() - 0.5) * 0.4,
+                          color: '#22c55e' // emerald-500
+                      });
+                  }
+              }
+
+              if (tradeProjectiles.length > 0) {
+                  setProjectiles(prev => {
+                      const combined = [...prev, ...tradeProjectiles];
+                      return combined.slice(-MAX_PROJECTILES);
+                  });
+              }
+
               if (tradeC1 > 0 && nextTime % 50 === 0) {
                   addEvent(`[TRADE] Resource exchange successful (Diplomacy: ${Math.round(diplomacyFactor * 100)}).`, nextTime);
               }
           }
       };
-      
+
       exchangeResources(newCiv1, newCiv2);
 
       // 9. Extinction Check
@@ -511,7 +554,8 @@ const SciFiConflictSimulator = () => {
               id: Date.now() + Math.random() + `a${i}`,
               direction: 'right', // Civ 1 fires right
               progress: 0,
-              spreadAngle: (Math.random() - 0.5) * 0.5 * (1 + spreadFactor)
+              spreadAngle: (Math.random() - 0.5) * 0.5 * (1 + spreadFactor),
+              color: initialCiv1.color
             });
           }
 
@@ -522,7 +566,8 @@ const SciFiConflictSimulator = () => {
               id: Date.now() + Math.random() + `b${i}`,
               direction: 'left', // Civ 2 fires left
               progress: 0,
-              spreadAngle: (Math.random() - 0.5) * 0.5 * (1 + spreadFactor)
+              spreadAngle: (Math.random() - 0.5) * 0.5 * (1 + spreadFactor),
+              color: initialCiv2.color
             });
           }
 
@@ -564,8 +609,8 @@ const SciFiConflictSimulator = () => {
 
   // --- Projectile Movement Logic ---
   useEffect(() => {
-    if (warStatus !== 'WAR' || !isRunning) return;
-    
+    if (!isRunning) return;
+
     const interval = setInterval(() => {
       setProjectiles(prev => {
         return prev
@@ -575,7 +620,7 @@ const SciFiConflictSimulator = () => {
     }, 20);
 
     return () => clearInterval(interval);
-  }, [warStatus, isRunning]);
+  }, [isRunning]);
 
   // --- Utility Functions and Components ---
 
@@ -985,7 +1030,9 @@ const formatNumber = (num) => {
               const currentX = startX + (endX - startX) * progressRatio;
               const currentY = 50 + proj.spreadAngle * spreadAmount;
               
-              const projectileColor = proj.direction === 'right' ? initialCiv1.color : initialCiv2.color;
+              const projectileColor = proj.color
+                ? proj.color
+                : (proj.direction === 'right' ? initialCiv1.color : initialCiv2.color);
 
               return (
                 <div
