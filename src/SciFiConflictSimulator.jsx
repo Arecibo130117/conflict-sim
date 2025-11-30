@@ -460,32 +460,50 @@ const SciFiConflictSimulator = () => {
       // 11. Projectile Generation
       if (warStatus === 'WAR' && isRunning) {
         const FIRE_RATE = 5; 
-        
+
         if (nextTime % FIRE_RATE === 0) {
           const SCALE = 50; 
-          
+          const MAX_SHOTS_PER_TICK = 50; 
+          const MAX_PROJECTILES = 400;
+
+          const safeMil1 = Number.isFinite(civ1.military) && civ1.military > 0 ? civ1.military : 0;
+          const safeMil2 = Number.isFinite(civ2.military) && civ2.military > 0 ? civ2.military : 0;
+
+          const rawShots1 = Math.floor(safeMil1 / SCALE);
+          const rawShots2 = Math.floor(safeMil2 / SCALE);
+
+          const shots1 = Math.min(MAX_SHOTS_PER_TICK, rawShots1);
+          const shots2 = Math.min(MAX_SHOTS_PER_TICK, rawShots2);
+
+          const newProjectiles = [];
+
           // Civ 1 firing
-          const shots1 = Math.floor(civ1.military / SCALE);
           for (let i = 0; i < shots1; i++) {
-            const spreadFactor = Math.min(1, civ2.military / civ1.military); 
-            setProjectiles(prev => [...prev, {
+            const spreadFactor = safeMil1 > 0 ? Math.min(1, safeMil2 / safeMil1) : 0;
+            newProjectiles.push({
               id: Date.now() + Math.random() + `a${i}`,
               direction: 'right', // Civ 1 fires right
               progress: 0,
               spreadAngle: (Math.random() - 0.5) * 0.5 * (1 + spreadFactor)
-            }]);
+            });
           }
 
           // Civ 2 firing
-          const shots2 = Math.floor(civ2.military / SCALE);
           for (let i = 0; i < shots2; i++) {
-            const spreadFactor = Math.min(1, civ1.military / civ2.military);
-            setProjectiles(prev => [...prev, {
+            const spreadFactor = safeMil2 > 0 ? Math.min(1, safeMil1 / safeMil2) : 0;
+            newProjectiles.push({
               id: Date.now() + Math.random() + `b${i}`,
               direction: 'left', // Civ 2 fires left
               progress: 0,
               spreadAngle: (Math.random() - 0.5) * 0.5 * (1 + spreadFactor)
-            }]);
+            });
+          }
+
+          if (newProjectiles.length > 0) {
+            setProjectiles(prev => {
+              const combined = [...prev, ...newProjectiles];
+              return combined.slice(-MAX_PROJECTILES);
+            });
           }
         }
       }
