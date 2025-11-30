@@ -445,49 +445,52 @@ const SciFiConflictSimulator = () => {
                   technology: prev.technology + (c1.technology > prev.technology ? techShare : 0)
               }));
 
-              // GREEN TRADE PROJECTILES (peace-time resource exchange visualization)
-              const tradeProjectiles = [];
-              const MAX_PROJECTILES = 400;
-              const TRADE_SCALE = 20; // larger value -> fewer bullets per trade
-              const MAX_TRADE_SHOTS = 25;
+              // 🔹 자원 교환 로그가 찍히는 시점에만 단발성으로 초록 발사체를 생성
+              if ((tradeC1 !== 0 || tradeC2 !== 0) && nextTime % 50 === 0) {
+                  const tradeProjectiles = [];
+                  const MAX_PROJECTILES = 400;
+                  const TRADE_SCALE = 20; // larger value -> fewer bullets per trade
+                  const MAX_TRADE_SHOTS = 25;
 
-              if (tradeC1 > 0) {
-                  // Resources moved from Civ 2 (right) to Civ 1 (left)
-                  const shots = Math.min(MAX_TRADE_SHOTS, Math.max(1, Math.floor(tradeC1 / TRADE_SCALE)));
-                  for (let i = 0; i < shots; i++) {
-                      tradeProjectiles.push({
-                          id: Date.now() + Math.random() + `tL${i}`,
-                          direction: 'left',
-                          progress: 0,
-                          spreadAngle: (Math.random() - 0.5) * 0.4,
-                          color: '#22c55e' // emerald-500
+                  if (tradeC1 > 0) {
+                      // Resources moved from Civ 2 (right) to Civ 1 (left)
+                      const shots = Math.min(MAX_TRADE_SHOTS, Math.max(1, Math.floor(tradeC1 / TRADE_SCALE)));
+                      for (let i = 0; i < shots; i++) {
+                          tradeProjectiles.push({
+                              id: Date.now() + Math.random() + `tL${i}`,
+                              direction: 'left',
+                              progress: 0,
+                              spreadAngle: (Math.random() - 0.5) * 0.4,
+                              color: '#22c55e' // emerald-500
+                          });
+                      }
+                  }
+
+                  if (tradeC2 > 0) {
+                      // Resources moved from Civ 1 (left) to Civ 2 (right)
+                      const shots = Math.min(MAX_TRADE_SHOTS, Math.max(1, Math.floor(tradeC2 / TRADE_SCALE)));
+                      for (let i = 0; i < shots; i++) {
+                          tradeProjectiles.push({
+                              id: Date.now() + Math.random() + `tR${i}`,
+                              direction: 'right',
+                              progress: 0,
+                              spreadAngle: (Math.random() - 0.5) * 0.4,
+                              color: '#22c55e' // emerald-500
+                          });
+                      }
+                  }
+
+                  if (tradeProjectiles.length > 0) {
+                      setProjectiles(prev => {
+                          const combined = [...prev, ...tradeProjectiles];
+                          return combined.slice(-MAX_PROJECTILES);
                       });
                   }
-              }
 
-              if (tradeC2 > 0) {
-                  // Resources moved from Civ 1 (left) to Civ 2 (right)
-                  const shots = Math.min(MAX_TRADE_SHOTS, Math.max(1, Math.floor(tradeC2 / TRADE_SCALE)));
-                  for (let i = 0; i < shots; i++) {
-                      tradeProjectiles.push({
-                          id: Date.now() + Math.random() + `tR${i}`,
-                          direction: 'right',
-                          progress: 0,
-                          spreadAngle: (Math.random() - 0.5) * 0.4,
-                          color: '#22c55e' // emerald-500
-                      });
-                  }
-              }
-
-              if (tradeProjectiles.length > 0) {
-                  setProjectiles(prev => {
-                      const combined = [...prev, ...tradeProjectiles];
-                      return combined.slice(-MAX_PROJECTILES);
-                  });
-              }
-
-              if (tradeC1 > 0 && nextTime % 50 === 0) {
-                  addEvent(`[TRADE] Resource exchange successful (Diplomacy: ${Math.round(diplomacyFactor * 100)}).`, nextTime);
+                  addEvent(
+                    `[TRADE] Resource exchange successful (Diplomacy: ${Math.round(diplomacyFactor * 100)}).`,
+                    nextTime
+                  );
               }
           }
       };
