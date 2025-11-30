@@ -1289,12 +1289,12 @@ const Chart = ({ history, maxVal, key1, key2, color1, color2, label1, label2, re
             />
 
             {/* Legend - Manually placed in top right */}
-            <g transform="translate(680, 10)">
-              <rect x="0" y="0" width="120" height="40" fill="#1e293b" rx="5" ry="5" opacity="0.8" />
-              <circle cx="10" cy="10" r="4" fill={color1} />
-              <text x="20" y="14" fontSize="10" fill="white">{label1}</text>
-              <circle cx="10" cy="30" r="4" fill={color2} />
-              <text x="20" y="34" fontSize="10" fill="white">{label2}</text>
+            <g transform="translate(640, 10)">
+              <rect x="0" y="0" width="150" height="44" fill="#1e293b" rx="6" ry="6" opacity="0.85" />
+              <circle cx="12" cy="12" r="5" fill={color1} />
+              <text x="24" y="15" fontSize="11" fill="white">{label1}</text>
+              <circle cx="12" cy="32" r="5" fill={color2} />
+              <text x="24" y="35" fontSize="11" fill="white">{label2}</text>
             </g>
         </svg>
     );
