@@ -704,8 +704,8 @@ const formatNumber = (num) => {
       { label: 'Initial Energy', key: 'energy' },
       { label: 'Initial Morale', key: 'morale' },
       // NEW: Instinct Fields
-      { label: 'Base Survival Instinct (0-100)', key: 'baseSurvivalInstinct' },
-      { label: 'Base Development Desire (0-100)', key: 'baseDevelopmentDesire' },
+      { label: 'Base Survival Instinct', key: 'baseSurvivalInstinct' },
+      { label: 'Base Development Desire', key: 'baseDevelopmentDesire' },
     ];
 
     const handleInitialInputChange = (e, key) => {
