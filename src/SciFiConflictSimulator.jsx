@@ -231,13 +231,40 @@ const SciFiConflictSimulator = () => {
         newCiv.runtimeSurvivalInstinct = survivalInstinct;
         newCiv.runtimeDevelopmentDesire = developmentDesire;
 
-        // 2. Technological Singularity Check 
-        if (newCiv.technology >= 400 && !newCiv.isSingularity) {
-            newCiv.isSingularity = true;
-            addEvent(`[SINGULARITY] ${newCiv.name} reached Technological Singularity! Massive growth boost activated.`, nextTime);
+        // 2. Technological Singularity Check (based on sustained tech growth speed)
+        const lastTech = prev.lastTech ?? prev.technology;
+        const techGrowthRate = prev.technology - lastTech;
+
+        let fastTechStreak = prev.fastTechStreak ?? 0;
+        const growthThreshold = Math.max(100, prev.technology * 0.08);
+
+        if (techGrowthRate > growthThreshold) {
+          fastTechStreak += 1;
+        } else {
+          fastTechStreak = Math.max(0, fastTechStreak - 1);
         }
 
-        // 3. Base Stat Calculation & Instinct Application
+        newCiv.techGrowthRate = techGrowthRate;
+        newCiv.fastTechStreak = fastTechStreak;
+        newCiv.lastTech = prev.technology;
+
+        if (!prev.isSingularity) {
+          const hasHighBaseTech = prev.technology > 1500;
+          const hasEnoughEnergy = prev.energy > 800;
+          const hasSustainedFastGrowth = fastTechStreak >= 20;
+
+          if (hasHighBaseTech && hasEnoughEnergy && hasSustainedFastGrowth) {
+            newCiv.isSingularity = true;
+            addEvent(
+              `[SINGULARITY] ${newCiv.name}'s technology growth enters a runaway phase. Technological Singularity achieved.`,
+              nextTime
+            );
+          }
+        } else {
+          newCiv.isSingularity = true;
+        }
+
+// 3. Base Stat Calculation & Instinct Application
         
         // 싱귤래리티/인구 기반 성장 부스트 (Singularity/Population Based Growth Boost)
         const growthMultiplier = newCiv.isSingularity ? 5.0 : 1.0;
