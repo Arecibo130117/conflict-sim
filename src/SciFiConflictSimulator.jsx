@@ -297,7 +297,7 @@ const SciFiConflictSimulator = () => {
         const baseEnergyGrowth = (prev.technology * 0.25) + (prev.resources * 0.005);
         let energyGain = baseEnergyGrowth * developmentDesire * totalGrowthFactor; 
         
-        // 4. Apply Event Modifiers (CRISIS / BOOM)
+        // 4. Apply Event Modifiers (CRISIS / BOOM / RECONSTRUCTION)
         if (currentEvent) {
             if (currentEvent.type === 'CRISIS') {
                 // Severe penalty
@@ -310,7 +310,7 @@ const SciFiConflictSimulator = () => {
                 newCiv.resources = Math.max(0, newCiv.resources - 30); // Immediate resource cost
                 newCiv.morale = Math.max(0, prev.morale - 1.0); // Morale drain
             } else if (currentEvent.type === 'BOOM') {
-                // Significant boost
+                // Significant boost (generic golden age)
                 const boomMultiplier = 2.0;
                 popGrowth *= boomMultiplier;
                 resourceGain *= boomMultiplier;
@@ -318,6 +318,19 @@ const SciFiConflictSimulator = () => {
                 techGrowth *= 1.5;
                 energyGain *= 1.5; // Energy gets a boost
                 moraleBoost += 0.5;
+            } else if (currentEvent.type === 'RECON') {
+                // Post-war reconstruction boom (B + C 스타일)
+                // 점진적이지만 강한 회복 및 성장 버프
+                const reconGrowthBoost = 1.3;
+                const reconResourceBoost = 1.5;
+                const reconEnergyBoost = 1.5;
+
+                popGrowth *= 1.2;
+                resourceGain *= reconResourceBoost;
+                techGrowth *= reconGrowthBoost;
+                energyGain *= reconEnergyBoost;
+                militaryGain *= 1.3; // 재건 과정에서 방위력도 점진적으로 회복
+                moraleBoost += 0.7;
             }
         }
         
@@ -376,6 +389,15 @@ const SciFiConflictSimulator = () => {
 
           // 1. Decrement duration or end event
           if (currentEvent) {
+              // 전후 재건(RECON) 진행 상황에 따른 단계적 로그 (B 스타일 이벤트)
+              if (currentEvent.type === 'RECON') {
+                  if (currentEvent.duration === 60) {
+                      addEvent(`[RECONSTRUCTION] ${civ.name}: civil infrastructure partially restored. Factories restart under tight rationing.`, nextTime);
+                  } else if (currentEvent.duration === 30) {
+                      addEvent(`[RECONSTRUCTION] ${civ.name}: technological networks reboot. Research hubs resume full operation.`, nextTime);
+                  }
+              }
+
               if (currentEvent.duration <= 1) {
                   addEvent(`[STABILITY] ${civ.name} recovered from ${currentEvent.type}.`, nextTime);
                   newEvent = null;
@@ -527,6 +549,19 @@ const SciFiConflictSimulator = () => {
           setWarStatus('PEACE');
           addEvent('[DIPLOMACY] Peace Treaty Signed: Hostilities Cease.', nextTime);
           setProjectiles([]);
+
+          // 전후 재건 이벤트 시작 (B + C 스타일 RECONSTRUCTION)
+          setActiveEvent(prev => ({
+            civ1: civ1.population > 0 ? { type: 'RECON', duration: 80 } : prev.civ1,
+            civ2: civ2.population > 0 ? { type: 'RECON', duration: 80 } : prev.civ2,
+          }));
+
+          if (civ1.population > 0) {
+            addEvent(`[RECONSTRUCTION] ${civ1.name} begins post-war rebuilding. Civic morale surges.`, nextTime);
+          }
+          if (civ2.population > 0) {
+            addEvent(`[RECONSTRUCTION] ${civ2.name} begins post-war rebuilding. Civic morale surges.`, nextTime);
+          }
         }
       }
 
