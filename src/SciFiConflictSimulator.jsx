@@ -148,10 +148,11 @@ const SciFiConflictSimulator = () => {
   const [activeEvent, setActiveEvent] = useState({ civ1: null, civ2: null });
 
   const addEvent = useCallback((message, t) => {
-    setEvents((prev) => [{ time: t, message }, ...prev]); // 로그 누적, 자르지 않음
+    // 로그 누적 (자르지 않음)
+    setEvents((prev) => [{ time: t, message }, ...prev]);
   }, []);
 
-  // PAUSE 상태에서만 time 0일 때 초기값 동기화
+  // PAUSE 상태 + time 0 에서만 초기값 재동기화
   useEffect(() => {
     if (!isRunning && time === 0) {
       setCiv1(initialCiv1);
@@ -286,7 +287,7 @@ const SciFiConflictSimulator = () => {
       };
 
       // ==========================
-      // updateCiv (여기가 방금 수정한 핵심 부분)
+      // updateCiv – 핵심 시뮬레이션 로직
       // ==========================
       const updateCiv = (prev, other, currentEvent) => {
         if (prev.population <= 0) {
@@ -301,12 +302,12 @@ const SciFiConflictSimulator = () => {
         newCiv.runtimeSurvivalInstinct = survivalInstinct;
         newCiv.runtimeDevelopmentDesire = developmentDesire;
 
-        // 1. 특이점 로직 (더 느리게)
+        // 1. 특이점 로직 – "조금 더 늦게"
         const lastTech = prev.lastTech ?? prev.technology;
         const techGrowthRate = prev.technology - lastTech;
 
         let fastTechStreak = prev.fastTechStreak ?? 0;
-        const growthThreshold = Math.max(200, prev.technology * 0.04);
+        const growthThreshold = Math.max(220, prev.technology * 0.045);
 
         if (techGrowthRate > growthThreshold) {
           fastTechStreak += 1;
@@ -319,9 +320,9 @@ const SciFiConflictSimulator = () => {
         newCiv.lastTech = prev.technology;
 
         if (!prev.isSingularity) {
-          const hasHighBaseTech = prev.technology > 4000;
-          const hasEnoughEnergy = prev.energy > 2500;
-          const hasSustainedFastGrowth = fastTechStreak >= 50;
+          const hasHighBaseTech = prev.technology > 4500; // 4000 → 4500
+          const hasEnoughEnergy = prev.energy > 2800; // 2500 → 2800
+          const hasSustainedFastGrowth = fastTechStreak >= 60; // 50 → 60
 
           if (hasHighBaseTech && hasEnoughEnergy && hasSustainedFastGrowth) {
             newCiv.isSingularity = true;
@@ -360,7 +361,6 @@ const SciFiConflictSimulator = () => {
         const baseResourceCost =
           prev.military * 0.3 + prev.population * 0.02;
 
-        // 여기서 let 으로 선언 → 채굴 중 비용 감소 가능
         let resourceCost =
           baseResourceCost / Math.pow(survivalInstinct, 0.5);
 
@@ -382,7 +382,7 @@ const SciFiConflictSimulator = () => {
         let energyGain =
           baseEnergyGrowth * developmentDesire * totalGrowthFactor;
 
-        // 3. 소행성 채굴 (확실히 플러스)
+        // 3. 소행성 채굴 로직
         const ASTEROID_TECH_THRESHOLD = 800;
         const ASTEROID_START_RESOURCE = 1200;
         let asteroidActive = prev.isAsteroidMining || false;
@@ -394,7 +394,7 @@ const SciFiConflictSimulator = () => {
         ) {
           asteroidActive = true;
           addEvent(
-            `[ASTEROID MINING START] ${prev.name} launches continuous asteroid strip-mining fleets.`,
+            `[ASTEROID MINING START] ${prev.name} launches continuous off-world mining fleets.`,
             nextTime,
           );
         }
@@ -411,14 +411,13 @@ const SciFiConflictSimulator = () => {
 
           resourceGain += asteroidGain;
 
-          // 채굴 중에는 국내 자원 소모 감소
           resourceCost *= 0.4;
 
           if (nextTime % 20 === 0) {
             addEvent(
               `[ASTEROID MINING] ${prev.name} extracts off-world resources (+${Math.round(
                 asteroidGain,
-              )} /tick, costs dampened).`,
+              )} /tick, upkeep dampened).`,
               nextTime,
             );
           }
@@ -429,7 +428,7 @@ const SciFiConflictSimulator = () => {
           if (prev.resources >= targetResource && expectedDelta > 0) {
             asteroidActive = false;
             addEvent(
-              `[ASTEROID MINING END] ${prev.name} winds down asteroid operations as surplus reserves are secured.`,
+              `[ASTEROID MINING END] ${prev.name} winds down mining operations as reserves stabilize.`,
               nextTime,
             );
           }
@@ -437,7 +436,7 @@ const SciFiConflictSimulator = () => {
 
         newCiv.isAsteroidMining = asteroidActive;
 
-        // 4. 이벤트 적용
+        // 4. 이벤트 효과
         if (currentEvent) {
           if (currentEvent.type === 'CRISIS') {
             popGrowth *= 0.1;
@@ -471,15 +470,16 @@ const SciFiConflictSimulator = () => {
           }
         }
 
-        // 5. 값 적용
+        // 5. 기본 값 적용
         newCiv.population = Math.max(0, prev.population + popGrowth);
         newCiv.technology = prev.technology + techGrowth;
 
         const baseResources = newCiv.resources ?? prev.resources;
-        newCiv.resources = Math.max(
-          0,
-          baseResources + resourceGain - resourceCost,
-        );
+        newCiv.resources = baseResources + resourceGain - resourceCost;
+        if (!Number.isFinite(newCiv.resources)) {
+          newCiv.resources = 0;
+        }
+        newCiv.resources = Math.max(0, newCiv.resources);
 
         const basePopEnergyCost = prev.population * 0.01;
         const popEnergyCost =
@@ -490,7 +490,7 @@ const SciFiConflictSimulator = () => {
         newCiv.energy = prev.energy + energyGain - popEnergyCost;
         newCiv.energy = Math.max(0, newCiv.energy);
 
-        // 6. 전쟁 시 손실
+        // 6. 전쟁 시 군사/인구 손실
         if (warStatus === 'WAR') {
           const techDifference = other.technology - prev.technology;
           const powerRatio = other.military / (prev.military + 1);
@@ -540,6 +540,47 @@ const SciFiConflictSimulator = () => {
           );
         }
 
+        // 7. 자원 부족 시 인구/군대 줄이기 (부족할수록 더 세게)
+        const RESOURCE_CRISIS_THRESHOLD = 200;
+
+        if (newCiv.resources < RESOURCE_CRISIS_THRESHOLD) {
+          const shortageRatio =
+            (RESOURCE_CRISIS_THRESHOLD - newCiv.resources) /
+            RESOURCE_CRISIS_THRESHOLD; // 0~1
+
+          const starvationRate = 0.01 * (1 + 4 * shortageRatio); // 1% ~ 5%
+          const demobilizationRate = 0.03 * (1 + 4 * shortageRatio); // 3% ~ 15%
+
+          const starvationLoss = newCiv.population * starvationRate;
+          const demobilizationLoss = newCiv.military * demobilizationRate;
+
+          if (starvationLoss > 0 || demobilizationLoss > 0) {
+            newCiv.population = Math.max(
+              0,
+              newCiv.population - starvationLoss,
+            );
+            newCiv.military = Math.max(
+              0,
+              newCiv.military - demobilizationLoss,
+            );
+
+            const moraleDrop = 2 * (1 + 3 * shortageRatio); // 2 ~ 8 정도
+            newCiv.morale = Math.max(0, newCiv.morale - moraleDrop);
+
+            if (nextTime % 10 === 0) {
+              addEvent(
+                `[RESOURCE SHORTAGE] ${
+                  prev.name
+                } suffers famine and demobilization (Pop -${Math.round(
+                  starvationRate * 100,
+                )}%, Mil -${Math.round(demobilizationRate * 100)}%).`,
+                nextTime,
+              );
+            }
+          }
+        }
+
+        // 8. 최종 클램핑
         newCiv.morale = Math.min(100, Math.max(0, newCiv.morale));
         newCiv.military = Math.max(0, newCiv.military);
 
@@ -773,7 +814,7 @@ const SciFiConflictSimulator = () => {
         }
       }
 
-      // 히스토리 업데이트
+      // 히스토리 업데이트 (최근 100틱만)
       setHistory((prev) =>
         [
           ...prev,
@@ -846,7 +887,6 @@ const SciFiConflictSimulator = () => {
             <Icon
               size={12}
               strokeWidth={2}
-              className={`text-[${color}]`}
               style={{ color }}
             />
             <span className="font-medium text-white">{label}</span>
@@ -1160,7 +1200,7 @@ const SciFiConflictSimulator = () => {
           </div>
           {isActive && !isDead && (
             <span
-              className={`absolute top-0 right-0 p-1 rounded-full text-white ${civ.accent}`}
+              className="absolute top-0 right-0 p-1 rounded-full text-white"
               style={{ backgroundColor: civ.color }}
             >
               <Swords size={12} />
