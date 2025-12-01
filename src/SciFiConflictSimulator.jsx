@@ -320,10 +320,10 @@ const SciFiConflictSimulator = () => {
                 moraleBoost += 0.5;
             } else if (currentEvent.type === 'RECON') {
                 // Post-war reconstruction boom (B + C 스타일)
-                // 점진적이지만 강한 회복 및 성장 버프
+                // 점진적이지만 강한 회복 및 성장 버프 + 에너지 회복 강화
                 const reconGrowthBoost = 1.3;
                 const reconResourceBoost = 1.5;
-                const reconEnergyBoost = 1.5;
+                const reconEnergyBoost = 2.2; // 에너지는 조금 더 강하게
 
                 popGrowth *= 1.2;
                 resourceGain *= reconResourceBoost;
@@ -340,7 +340,13 @@ const SciFiConflictSimulator = () => {
         newCiv.resources = Math.max(0, newCiv.resources + resourceGain - resourceCost);
         
         // 에너지 적용: 생산 - 인구 부양 비용
-        newCiv.energy = prev.energy + energyGain - (prev.population * 0.01); 
+        const basePopEnergyCost = prev.population * 0.01;
+        // 재건기에는 인구가 먹는 에너지 비용을 완화 (회복 모드 느낌)
+        const popEnergyCost = currentEvent?.type === 'RECON'
+          ? basePopEnergyCost * 0.5
+          : basePopEnergyCost;
+
+        newCiv.energy = prev.energy + energyGain - popEnergyCost; 
         newCiv.energy = Math.max(0, newCiv.energy); // 에너지 최소 0 유지
         
         
@@ -393,6 +399,8 @@ const SciFiConflictSimulator = () => {
               if (currentEvent.type === 'RECON') {
                   if (currentEvent.duration === 60) {
                       addEvent(`[RECONSTRUCTION] ${civ.name}: civil infrastructure partially restored. Factories restart under tight rationing.`, nextTime);
+                  } else if (currentEvent.duration === 50) {
+                      addEvent(`[RECONSTRUCTION] ${civ.name}: planetary energy grid stabilized. Power output begins to surge again.`, nextTime);
                   } else if (currentEvent.duration === 30) {
                       addEvent(`[RECONSTRUCTION] ${civ.name}: technological networks reboot. Research hubs resume full operation.`, nextTime);
                   }
@@ -652,13 +660,17 @@ const SciFiConflictSimulator = () => {
     const interval = setInterval(() => {
       setProjectiles(prev => {
         return prev
-          .map(p => ({...p, progress: p.progress + 1.5}))
+          .map(p => ({
+            ...p,
+            // 배속에 따라 발사체 이동 속도 조절
+            progress: p.progress + 1.5 * speed,
+          }))
           .filter(p => p.progress < 100);
       });
     }, 20);
 
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, speed]);
 
   // --- Utility Functions and Components ---
 
