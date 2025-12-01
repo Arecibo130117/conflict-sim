@@ -135,13 +135,14 @@ const SciFiConflictSimulator = () => {
     setEvents(prev => [{time: t, message}, ...prev.slice(0, 9)]);
   }, []);
 
-  // isRunning = false일 때, edit된 initial값을 runtime에 반영
+  // 일시정지(PAUSE) 시에는 현재 상태를 유지하고,
+  // 아직 시뮬레이션을 시작하지 않았을 때(time === 0)에만 초기값을 civ 상태에 동기화
   useEffect(() => {
-    if (!isRunning) {
-      setCiv1(initialCiv1);
-      setCiv2(initialCiv2);
+    if (!isRunning && time === 0) {
+        setCiv1(initialCiv1);
+        setCiv2(initialCiv2);
     }
-  }, [isRunning, initialCiv1, initialCiv2]);
+  }, [isRunning, time, initialCiv1, initialCiv2]);
 
   const reset = useCallback(() => {
     setIsRunning(false);
@@ -207,23 +208,28 @@ const SciFiConflictSimulator = () => {
       const updateCiv = (prev, other, currentEvent) => {
         if (prev.population <= 0) return { ...prev, population: 0, military: 0, morale: 0 };
         
-        let newCiv = { ...prev };
+        let newCiv = {...prev};
         
-        // 1. Instinct Factors
+        // 1. Instinct Factor Calculation (사용자 설정 + 동적 상황) - UPDATED to use helper
         const { survivalInstinct, developmentDesire } = calculateInstinctFactors(prev);
+        
+        // Store calculated factors for history/charts
         newCiv.runtimeSurvivalInstinct = survivalInstinct;
         newCiv.runtimeDevelopmentDesire = developmentDesire;
 
-        // 2. 기술적 특이점 체크 (속도 완화 버전)
+        // 2. Technological Singularity Check (based on sustained tech growth speed)
         const lastTech = prev.lastTech ?? prev.technology;
         const techGrowthRate = prev.technology - lastTech;
 
         let fastTechStreak = prev.fastTechStreak ?? 0;
-        const growthThreshold = Math.max(150, prev.technology * 0.10); // 기준 상향
+        // 기술적 특이점 판정 기준을 더 엄격하게 조정
+        // - 성장률 기준 상향: 최소 +200 또는 현재 기술력의 15% 이상
+        const growthThreshold = Math.max(200, prev.technology * 0.15);
 
         if (techGrowthRate > growthThreshold) {
           fastTechStreak += 1;
         } else {
+          // 잠깐 속도가 줄어들면 연속 카운트를 서서히 감소
           fastTechStreak = Math.max(0, fastTechStreak - 1);
         }
 
@@ -232,9 +238,10 @@ const SciFiConflictSimulator = () => {
         newCiv.lastTech = prev.technology;
 
         if (!prev.isSingularity) {
-          const hasHighBaseTech = prev.technology > 2500;    // 1500 → 2500
-          const hasEnoughEnergy = prev.energy > 1500;        // 800 → 1500
-          const hasSustainedFastGrowth = fastTechStreak >= 35; // 20 → 35
+          // 특이점 진입 조건 대폭 강화
+          const hasHighBaseTech = prev.technology > 4000;   // 기술력 요구치 상향
+          const hasEnoughEnergy = prev.energy > 2500;        // 에너지 요구치 상향
+          const hasSustainedFastGrowth = fastTechStreak >= 50; // 연속 고성장 턴 수 상향
 
           if (hasHighBaseTech && hasEnoughEnergy && hasSustainedFastGrowth) {
             newCiv.isSingularity = true;
@@ -247,168 +254,137 @@ const SciFiConflictSimulator = () => {
           newCiv.isSingularity = true;
         }
 
-        // 3. 기본 성장/소모 계산
+        // 3. Base Stat Calculation & Instinct Application
+        
+        // 싱귤래리티/인구 기반 성장 부스트 (Singularity/Population Based Growth Boost)
         const growthMultiplier = newCiv.isSingularity ? 5.0 : 1.0;
-        const popGrowthFactor = Math.min(2.0, prev.resources / 800);
+        const popGrowthFactor = Math.min(2.0, prev.resources / 800); 
         const totalGrowthFactor = growthMultiplier * popGrowthFactor;
 
-        // 인구
-        let popGrowth =
-          prev.population *
-          0.008 *
-          popGrowthFactor *
-          (1 - prev.population / 10000) *
-          growthMultiplier *
-          developmentDesire *
-          (prev.morale / 80);
+        // 인구 성장: Development Desire와 사기 반영
+        let popGrowth = prev.population * 0.008 * popGrowthFactor * (1 - prev.population / 10000) * growthMultiplier * developmentDesire * (prev.morale / 80);
         
-        // 기술
-        let techGrowth =
-          (0.3 + prev.energy / 500) *
-          totalGrowthFactor *
-          developmentDesire;
+        // 기술 성장: Development Desire와 에너지 반영
+        let techGrowth = (0.3 + (prev.energy / 500)) * totalGrowthFactor * developmentDesire; 
         
-        // 자원 기본 증가
-        let resourceGain =
-          (prev.population * 0.05 + prev.technology * 0.2) *
-          totalGrowthFactor *
-          developmentDesire;
-
-        // 3-1. 자원이 0일 때, 기술력이 충분하면 소행성 채굴
+        // 자원 수급: Development Desire 반영
+        let resourceGain = (prev.population * 0.05 + prev.technology * 0.2) * totalGrowthFactor * developmentDesire;
+        
+        // 소행성 채굴: RECONSTRUCTION 시기, 자원이 고갈 상태이고 충분한 기술력을 보유한 경우
+        // 자원이 0에 가깝고 기술력이 높으면, 우주 자원 채굴로 추가 자원 확보
         const ASTEROID_TECH_THRESHOLD = 800;
-        if (prev.resources <= 0 && prev.technology >= ASTEROID_TECH_THRESHOLD) {
-          const miningEfficiency = 0.04; // (tech - threshold) * 0.04
-          const asteroidGain =
-            (prev.technology - ASTEROID_TECH_THRESHOLD) * miningEfficiency;
-          
+        if (currentEvent && currentEvent.type === 'RECON' && prev.technology >= ASTEROID_TECH_THRESHOLD && prev.resources <= 500) {
+          // 기술력이 높을수록 채굴 효율 증가 (RECON 기간 동안 거의 매 턴 발생)
+          const miningEfficiency = 0.12;
+          const asteroidGain = Math.max(0, (prev.technology - ASTEROID_TECH_THRESHOLD) * miningEfficiency);
           resourceGain += asteroidGain;
-
+          
+          // 최초 한 번만 로그 출력
           if (!prev.hasAsteroidMining) {
             addEvent(
-              `[ASTEROID MINING] ${prev.name} has exhausted local resources and begins asteroid mining operations. Resources slowly recover from space.`,
+              `[ASTEROID MINING] ${prev.name} turns to asteroid belts during reconstruction. Space-based resources supplement the exhausted world.`,
               nextTime
             );
           }
-
           newCiv.hasAsteroidMining = true;
         }
 
-        // 자원 소모
+        // 자원 소모: Survival Instinct로 효율 개선 (본능이 강할수록 소모 감소)
         const baseResourceCost = prev.military * 0.3 + prev.population * 0.02;
-        const resourceCost =
-          baseResourceCost / Math.pow(survivalInstinct, 0.5);
+        const resourceCost = baseResourceCost / Math.pow(survivalInstinct, 0.5);
 
-        // 평화 시 군사/사기
+        // 평화 시 군사력 및 사기 증진
         let militaryGain = 0;
         let moraleBoost = 0;
         if (warStatus === 'PEACE') {
-          militaryGain =
-            (prev.technology * 0.05 +
-              prev.resources * 0.005 +
-              prev.aggressiveness * 0.05) *
-            popGrowthFactor *
-            survivalInstinct;
-          moraleBoost = 0.2 + prev.diplomacy * 0.01;
+          // 군사력 증강: Survival Instinct 반영
+          militaryGain = (prev.technology * 0.05 + prev.resources * 0.005 + prev.aggressiveness * 0.05) * popGrowthFactor * survivalInstinct; 
+          moraleBoost = 0.2 + (prev.diplomacy * 0.01);
         }
         
-        // 에너지
-        const baseEnergyGrowth =
-          prev.technology * 0.25 + prev.resources * 0.005;
-        let energyGain =
-          baseEnergyGrowth * developmentDesire * totalGrowthFactor;
+        // NEW: Energy Growth (에너지 생산 로직 개선 및 Development Desire 반영)
+        const baseEnergyGrowth = (prev.technology * 0.25) + (prev.resources * 0.005);
+        let energyGain = baseEnergyGrowth * developmentDesire * totalGrowthFactor; 
         
-        // 4. 이벤트 보정 (CRISIS / BOOM / RECON)
+        // 4. Apply Event Modifiers (CRISIS / BOOM / RECONSTRUCTION)
         if (currentEvent) {
-          if (currentEvent.type === 'CRISIS') {
-            popGrowth *= 0.1;
-            techGrowth *= 0.2;
-            militaryGain *= 0.1;
-            energyGain *= 0.1;
-            newCiv.resources = Math.max(0, newCiv.resources - 30);
-            newCiv.morale = Math.max(0, prev.morale - 1.0);
-          } else if (currentEvent.type === 'BOOM') {
-            const boomMultiplier = 2.0;
-            popGrowth *= boomMultiplier;
-            resourceGain *= boomMultiplier;
-            militaryGain *= 2.0;
-            techGrowth *= 1.5;
-            energyGain *= 1.5;
-            moraleBoost += 0.5;
-          } else if (currentEvent.type === 'RECON') {
-            const reconGrowthBoost = 1.3;
-            const reconResourceBoost = 1.5;
-            const reconEnergyBoost = 2.2;
+            if (currentEvent.type === 'CRISIS') {
+                // Severe penalty
+                popGrowth *= 0.1; 
+                techGrowth *= 0.2; 
+                militaryGain *= 0.1;
+                energyGain *= 0.1; // Energy also hit hard
+                
+                // Additional passive drain during crisis
+                newCiv.resources = Math.max(0, newCiv.resources - 30); // Immediate resource cost
+                newCiv.morale = Math.max(0, prev.morale - 1.0); // Morale drain
+            } else if (currentEvent.type === 'BOOM') {
+                // Significant boost (generic golden age)
+                const boomMultiplier = 2.0;
+                popGrowth *= boomMultiplier;
+                resourceGain *= boomMultiplier;
+                militaryGain *= 2.0; 
+                techGrowth *= 1.5; 
+                energyGain *= 1.5; // Energy gets a boost
+                moraleBoost += 0.5;
+            } else if (currentEvent.type === 'RECON') {
+                // Post-war reconstruction boom
+                const reconGrowthBoost = 1.3;
+                const reconResourceBoost = 1.5;
+                const reconEnergyBoost = 2.2;
 
-            popGrowth *= 1.2;
-            resourceGain *= reconResourceBoost;
-            techGrowth *= reconGrowthBoost;
-            energyGain *= reconEnergyBoost;
-            militaryGain *= 1.3;
-            moraleBoost += 0.7;
-          }
+                popGrowth *= 1.2;
+                resourceGain *= reconResourceBoost;
+                techGrowth *= reconGrowthBoost;
+                energyGain *= reconEnergyBoost;
+                militaryGain *= 1.3;
+                moraleBoost += 0.7;
+            }
         }
         
-        // 5. 실제 반영
+        // Apply calculated growth/cost
         newCiv.population = Math.max(0, prev.population + popGrowth);
         newCiv.technology = prev.technology + techGrowth;
-        newCiv.resources = Math.max(
-          0,
-          newCiv.resources + resourceGain - resourceCost
-        );
+        newCiv.resources = Math.max(0, newCiv.resources + resourceGain - resourceCost);
         
-        // 에너지 = 생산 - 인구 유지비
+        // 에너지 적용: 생산 - 인구 부양 비용
         const basePopEnergyCost = prev.population * 0.01;
-        const popEnergyCost =
-          currentEvent?.type === 'RECON'
-            ? basePopEnergyCost * 0.5
-            : basePopEnergyCost;
+        // 재건기에는 인구가 먹는 에너지 비용을 완화 (회복 모드 느낌)
+        const popEnergyCost = currentEvent?.type === 'RECON' ? basePopEnergyCost * 0.5 : basePopEnergyCost;
 
         newCiv.energy = prev.energy + energyGain - popEnergyCost;
-        newCiv.energy = Math.max(0, newCiv.energy);
+        newCiv.energy = Math.max(0, newCiv.energy); // 에너지 최소 0 유지
         
-        // 6. 전쟁 효과
+        // 5. War Effects
         if (warStatus === 'WAR') {
           const techDifference = other.technology - prev.technology;
           const powerRatio = other.military / (prev.military + 1);
           
           const baseLoss = Math.random() * 5 + 2;
-          const lossModifier =
-            1 + Math.max(0, powerRatio - 1) * 0.5;
+          const lossModifier = 1 + Math.max(0, powerRatio - 1) * 0.5;
           const techPenalty = Math.max(0, techDifference * 0.05);
 
-          const militaryLoss = Math.max(
-            0,
-            baseLoss * lossModifier + techPenalty
-          );
+          const militaryLoss = Math.max(0, baseLoss * lossModifier + techPenalty);
           
+          // 동적 최소 군사력 적용
           const dynamicMinMilitary = calculateBaseMilitary(prev);
-          newCiv.military = Math.max(
-            dynamicMinMilitary,
-            prev.military - militaryLoss
-          );
+          newCiv.military = Math.max(dynamicMinMilitary, prev.military - militaryLoss);
           
-          const popLoss = Math.random() * 2.5 * lossModifier;
+          const popLoss = Math.random() * 2.5 * lossModifier; 
           newCiv.population = Math.max(0, prev.population - popLoss);
           
-          newCiv.resources = Math.max(
-            0,
-            newCiv.resources - (20 + popLoss * 5)
-          );
+          newCiv.resources = Math.max(0, newCiv.resources - (20 + (popLoss * 5))); 
           
           const moraleHit = 1.0 + popLoss * 0.1;
           newCiv.morale = Math.max(0, prev.morale - moraleHit);
           
           if (nextTime % 15 === 0 && militaryLoss > 10) {
-            addEvent(
-              `[LOSSES] ${prev.name} suffered heavy military losses (${Math.round(
-                militaryLoss
-              )} units). Stability declining.`,
-              nextTime
-            );
+            addEvent(`[LOSSES] ${prev.name} suffered heavy military losses (${Math.round(militaryLoss)} units). Stability declining.`, nextTime);
           }
         } else {
-          newCiv.military = prev.military + militaryGain;
-          newCiv.morale = Math.min(100, prev.morale + moraleBoost);
+            // Peace time: apply military gain and morale boost
+            newCiv.military = prev.military + militaryGain;
+            newCiv.morale = Math.min(100, prev.morale + moraleBoost);
         }
         
         newCiv.morale = Math.min(100, Math.max(0, newCiv.morale));
@@ -424,6 +400,7 @@ const SciFiConflictSimulator = () => {
 
         if (currentEvent) {
           if (currentEvent.type === 'RECON') {
+            // RECON 중간 단계 로그들
             if (currentEvent.duration === 60) {
               addEvent(`[RECONSTRUCTION] ${civ.name}: civil infrastructure partially restored. Factories restart under tight rationing.`, nextTime);
             } else if (currentEvent.duration === 50) {
