@@ -302,7 +302,7 @@ const SciFiConflictSimulator = () => {
         newCiv.runtimeSurvivalInstinct = survivalInstinct;
         newCiv.runtimeDevelopmentDesire = developmentDesire;
 
-        // 1. 특이점 로직 – "조금 더 늦게"
+        // 1. 특이점 로직 – 조금 더 늦게
         const lastTech = prev.lastTech ?? prev.technology;
         const techGrowthRate = prev.technology - lastTech;
 
@@ -320,9 +320,10 @@ const SciFiConflictSimulator = () => {
         newCiv.lastTech = prev.technology;
 
         if (!prev.isSingularity) {
-          const hasHighBaseTech = prev.technology > 4500; // 4000 → 4500
-          const hasEnoughEnergy = prev.energy > 2800; // 2500 → 2800
-          const hasSustainedFastGrowth = fastTechStreak >= 60; // 50 → 60
+          // ★ 이전보다 조금 더 늦게 터지도록
+          const hasHighBaseTech = prev.technology > 4800; // 4500 → 4800
+          const hasEnoughEnergy = prev.energy > 3200; // 2800 → 3200
+          const hasSustainedFastGrowth = fastTechStreak >= 70; // 60 → 70
 
           if (hasHighBaseTech && hasEnoughEnergy && hasSustainedFastGrowth) {
             newCiv.isSingularity = true;
@@ -540,7 +541,7 @@ const SciFiConflictSimulator = () => {
           );
         }
 
-        // 7. 자원 부족 시 인구/군대 줄이기 (부족할수록 더 세게)
+        // 7. 자원 부족 시 인구/군대 줄이기 (부족할수록 더 세게, 하지만 완만하게)
         const RESOURCE_CRISIS_THRESHOLD = 200;
 
         if (newCiv.resources < RESOURCE_CRISIS_THRESHOLD) {
@@ -548,8 +549,9 @@ const SciFiConflictSimulator = () => {
             (RESOURCE_CRISIS_THRESHOLD - newCiv.resources) /
             RESOURCE_CRISIS_THRESHOLD; // 0~1
 
-          const starvationRate = 0.01 * (1 + 4 * shortageRatio); // 1% ~ 5%
-          const demobilizationRate = 0.03 * (1 + 4 * shortageRatio); // 3% ~ 15%
+          // 예전보다 한 단계 완만한 감소율
+          const starvationRate = 0.005 * (1 + 3 * shortageRatio); // 0.5% ~ ~2%
+          const demobilizationRate = 0.02 * (1 + 3 * shortageRatio); // 2% ~ ~8%
 
           const starvationLoss = newCiv.population * starvationRate;
           const demobilizationLoss = newCiv.military * demobilizationRate;
@@ -564,14 +566,14 @@ const SciFiConflictSimulator = () => {
               newCiv.military - demobilizationLoss,
             );
 
-            const moraleDrop = 2 * (1 + 3 * shortageRatio); // 2 ~ 8 정도
+            const moraleDrop = 1.5 * (1 + 2.5 * shortageRatio); // 약 1.5~5 정도
             newCiv.morale = Math.max(0, newCiv.morale - moraleDrop);
 
-            if (nextTime % 10 === 0) {
+            if (nextTime % 12 === 0) {
               addEvent(
                 `[RESOURCE SHORTAGE] ${
                   prev.name
-                } suffers famine and demobilization (Pop -${Math.round(
+                } suffers controlled famine & demobilization (Pop -${Math.round(
                   starvationRate * 100,
                 )}%, Mil -${Math.round(demobilizationRate * 100)}%).`,
                 nextTime,
@@ -814,31 +816,82 @@ const SciFiConflictSimulator = () => {
         }
       }
 
-      // 히스토리 업데이트 (최근 100틱만)
-      setHistory((prev) =>
-        [
-          ...prev,
-          {
-            time: nextTime,
-            civ1Pop: newCiv1.population,
-            civ2Pop: newCiv2.population,
-            civ1Tech: newCiv1.technology,
-            civ2Tech: newCiv2.technology,
-            civ1Military: newCiv1.military,
-            civ2Military: newCiv2.military,
-            civ1Resources: newCiv1.resources,
-            civ2Resources: newCiv2.resources,
-            civ1Energy: newCiv1.energy,
-            civ2Energy: newCiv2.energy,
-            civ1Morale: newCiv1.morale,
-            civ2Morale: newCiv2.morale,
-            civ1SurvivalInstinct: newCiv1.runtimeSurvivalInstinct,
-            civ2SurvivalInstinct: newCiv2.runtimeSurvivalInstinct,
-            civ1DevelopmentDesire: newCiv1.runtimeDevelopmentDesire,
-            civ2DevelopmentDesire: newCiv2.runtimeDevelopmentDesire,
-          },
-        ].slice(-100),
-      );
+      // 히스토리 업데이트 (최근 100틱만, 표시용 스무딩)
+      setHistory((prev) => {
+        const rawEntry = {
+          time: nextTime,
+          civ1Pop: newCiv1.population,
+          civ2Pop: newCiv2.population,
+          civ1Tech: newCiv1.technology,
+          civ2Tech: newCiv2.technology,
+          civ1Military: newCiv1.military,
+          civ2Military: newCiv2.military,
+          civ1Resources: newCiv1.resources,
+          civ2Resources: newCiv2.resources,
+          civ1Energy: newCiv1.energy,
+          civ2Energy: newCiv2.energy,
+          civ1Morale: newCiv1.morale,
+          civ2Morale: newCiv2.morale,
+          civ1SurvivalInstinct: newCiv1.runtimeSurvivalInstinct,
+          civ2SurvivalInstinct: newCiv2.runtimeSurvivalInstinct,
+          civ1DevelopmentDesire: newCiv1.runtimeDevelopmentDesire,
+          civ2DevelopmentDesire: newCiv2.runtimeDevelopmentDesire,
+        };
+
+        const alpha = 0.5; // 0.5: 이전 값과 절반씩 섞기
+        const last = prev[prev.length - 1];
+
+        const smoothedEntry =
+          last && last.time + 1 === rawEntry.time
+            ? {
+                time: rawEntry.time,
+                civ1Pop: alpha * rawEntry.civ1Pop + (1 - alpha) * last.civ1Pop,
+                civ2Pop: alpha * rawEntry.civ2Pop + (1 - alpha) * last.civ2Pop,
+                civ1Tech:
+                  alpha * rawEntry.civ1Tech + (1 - alpha) * last.civ1Tech,
+                civ2Tech:
+                  alpha * rawEntry.civ2Tech + (1 - alpha) * last.civ2Tech,
+                civ1Military:
+                  alpha * rawEntry.civ1Military +
+                  (1 - alpha) * last.civ1Military,
+                civ2Military:
+                  alpha * rawEntry.civ2Military +
+                  (1 - alpha) * last.civ2Military,
+                civ1Resources:
+                  alpha * rawEntry.civ1Resources +
+                  (1 - alpha) * last.civ1Resources,
+                civ2Resources:
+                  alpha * rawEntry.civ2Resources +
+                  (1 - alpha) * last.civ2Resources,
+                civ1Energy:
+                  alpha * rawEntry.civ1Energy +
+                  (1 - alpha) * last.civ1Energy,
+                civ2Energy:
+                  alpha * rawEntry.civ2Energy +
+                  (1 - alpha) * last.civ2Energy,
+                civ1Morale:
+                  alpha * rawEntry.civ1Morale +
+                  (1 - alpha) * last.civ1Morale,
+                civ2Morale:
+                  alpha * rawEntry.civ2Morale +
+                  (1 - alpha) * last.civ2Morale,
+                civ1SurvivalInstinct:
+                  alpha * (rawEntry.civ1SurvivalInstinct ?? 1) +
+                  (1 - alpha) * (last.civ1SurvivalInstinct ?? 1),
+                civ2SurvivalInstinct:
+                  alpha * (rawEntry.civ2SurvivalInstinct ?? 1) +
+                  (1 - alpha) * (last.civ2SurvivalInstinct ?? 1),
+                civ1DevelopmentDesire:
+                  alpha * (rawEntry.civ1DevelopmentDesire ?? 1) +
+                  (1 - alpha) * (last.civ1DevelopmentDesire ?? 1),
+                civ2DevelopmentDesire:
+                  alpha * (rawEntry.civ2DevelopmentDesire ?? 1) +
+                  (1 - alpha) * (last.civ2DevelopmentDesire ?? 1),
+              }
+            : rawEntry;
+
+        return [...prev, smoothedEntry].slice(-100);
+      });
     }, 100 / speed);
 
     return () => clearInterval(interval);
