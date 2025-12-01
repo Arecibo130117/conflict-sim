@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Play, Pause, RotateCcw, Zap, Users, Cpu, Shield, Droplet, Heart, Swords, Handshake, AlertTriangle, Sunrise, CloudRain } from 'lucide-react';
 
 // =================================================================================
-// [NEW HELPER] 무작위 초기 상태 생성을 위한 기본값 및 범위 설정
+// 무작위 초기 상태 생성을 위한 기본값 및 범위 설정
 // =================================================================================
 const INITIAL_RANGES = {
   population: [800, 1500],
@@ -18,94 +18,87 @@ const INITIAL_RANGES = {
 };
 
 const getRandomInt = (min, max) => {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 };
 
 const getRandomInitialCiv = (name, color, accent) => {
-    return {
-      name: name,
-      population: getRandomInt(...INITIAL_RANGES.population),
-      technology: getRandomInt(...INITIAL_RANGES.technology),
-      military: getRandomInt(...INITIAL_RANGES.military),
-      resources: getRandomInt(...INITIAL_RANGES.resources),
-      energy: getRandomInt(...INITIAL_RANGES.energy),
-      morale: getRandomInt(...INITIAL_RANGES.morale),
-      aggressiveness: getRandomInt(...INITIAL_RANGES.aggressiveness),
-      diplomacy: getRandomInt(...INITIAL_RANGES.diplomacy),
-      baseSurvivalInstinct: getRandomInt(...INITIAL_RANGES.baseSurvivalInstinct),
-      baseDevelopmentDesire: getRandomInt(...INITIAL_RANGES.baseDevelopmentDesire),
-      color: color,
-      accent: accent,
-      isSingularity: false,
-    };
+  return {
+    name: name,
+    population: getRandomInt(...INITIAL_RANGES.population),
+    technology: getRandomInt(...INITIAL_RANGES.technology),
+    military: getRandomInt(...INITIAL_RANGES.military),
+    resources: getRandomInt(...INITIAL_RANGES.resources),
+    energy: getRandomInt(...INITIAL_RANGES.energy),
+    morale: getRandomInt(...INITIAL_RANGES.morale),
+    aggressiveness: getRandomInt(...INITIAL_RANGES.aggressiveness),
+    diplomacy: getRandomInt(...INITIAL_RANGES.diplomacy),
+    baseSurvivalInstinct: getRandomInt(...INITIAL_RANGES.baseSurvivalInstinct),
+    baseDevelopmentDesire: getRandomInt(...INITIAL_RANGES.baseDevelopmentDesire),
+    color: color,
+    accent: accent,
+    isSingularity: false,
+    isAsteroidMining: false,
+  };
 };
 
 // =================================================================================
-// [NEW HELPER] 본능 요소 계산 함수 (재사용을 위해 분리)
+// 본능 요소 계산 함수
 // =================================================================================
 const calculateInstinctFactors = (civ) => {
-    // 0~1 사이로 정규화 (최대값 5000, 500)
-    const normalizedResource = Math.min(1, civ.resources / 5000); 
-    const normalizedMorale = civ.morale / 100;
-    const normalizedTech = Math.min(1, civ.technology / 500);
+  const normalizedResource = Math.min(1, civ.resources / 5000);
+  const normalizedMorale = civ.morale / 100;
+  const normalizedTech = Math.min(1, civ.technology / 500);
 
-    // Dynamic Status Boosts (0 to 1.5)
-    // Survival Boost: Low Resource/Morale -> High Boost
-    const lowStatusBoost = Math.max(0, 1 - normalizedResource * normalizedMorale) * 1.5; 
-    // Development Boost: High Resource/Tech -> High Boost
-    const highStatusBoost = Math.max(0, normalizedTech * normalizedResource) * 1.5; 
-    
-    // User Base Instinct (0-100) normalized to 0-1 and weighted (x0.5 contribution)
-    const userBaseSurvival = civ.baseSurvivalInstinct / 100;
-    const userBaseDevelopment = civ.baseDevelopmentDesire / 100;
+  const lowStatusBoost = Math.max(0, 1 - normalizedResource * normalizedMorale) * 1.5;
+  const highStatusBoost = Math.max(0, normalizedTech * normalizedResource) * 1.5;
 
-    // Blended Instinct Factor (Base 1.0 + User Bias + Dynamic Situation Boost)
-    const survivalInstinct = 1.0 + userBaseSurvival * 0.5 + lowStatusBoost;
-    const developmentDesire = 1.0 + userBaseDevelopment * 0.5 + highStatusBoost;
-    
-    return { survivalInstinct, developmentDesire };
+  const userBaseSurvival = civ.baseSurvivalInstinct / 100;
+  const userBaseDevelopment = civ.baseDevelopmentDesire / 100;
+
+  const survivalInstinct = 1.0 + userBaseSurvival * 0.5 + lowStatusBoost;
+  const developmentDesire = 1.0 + userBaseDevelopment * 0.5 + highStatusBoost;
+
+  return { survivalInstinct, developmentDesire };
 };
 
-// Initial state setup (runs once)
 const getInitialState = (civ1, civ2) => {
-    const factors1 = calculateInstinctFactors(civ1);
-    const factors2 = calculateInstinctFactors(civ2);
+  const factors1 = calculateInstinctFactors(civ1);
+  const factors2 = calculateInstinctFactors(civ2);
 
-    return [{
-        time: 0,
-        civ1Pop: civ1.population,
-        civ2Pop: civ2.population,
-        civ1Tech: civ1.technology,
-        civ2Tech: civ2.technology,
-        civ1Military: civ1.military,
-        civ2Military: civ2.military,
-        civ1Resources: civ1.resources,
-        civ2Resources: civ2.resources,
-        civ1Energy: civ1.energy,
-        civ2Energy: civ2.energy,
-        civ1Morale: civ1.morale,
-        civ2Morale: civ2.morale,
-        civ1SurvivalInstinct: factors1.survivalInstinct,
-        civ2SurvivalInstinct: factors2.survivalInstinct,
-        civ1DevelopmentDesire: factors1.developmentDesire,
-        civ2DevelopmentDesire: factors2.developmentDesire,
-    }];
+  return [{
+    time: 0,
+    civ1Pop: civ1.population,
+    civ2Pop: civ2.population,
+    civ1Tech: civ1.technology,
+    civ2Tech: civ2.technology,
+    civ1Military: civ1.military,
+    civ2Military: civ2.military,
+    civ1Resources: civ1.resources,
+    civ2Resources: civ2.resources,
+    civ1Energy: civ1.energy,
+    civ2Energy: civ2.energy,
+    civ1Morale: civ1.morale,
+    civ2Morale: civ2.morale,
+    civ1SurvivalInstinct: factors1.survivalInstinct,
+    civ2SurvivalInstinct: factors2.survivalInstinct,
+    civ1DevelopmentDesire: factors1.developmentDesire,
+    civ2DevelopmentDesire: factors2.developmentDesire,
+  }];
 };
 
 // 숫자 포맷터
 const formatNumber = (num) => {
   if (num === Infinity || isNaN(num) || num <= 0) return '0';
 
-  // 1경(10^16) 이상이면 숫자 대신 SINGULARITY로 표시
   if (num >= 10_000_000_000_000_000) return 'SINGULARITY';
 
   const units = [
-    { v: 1_000_000_000_000_000, s: 'P' }, // 10^15
-    { v: 10_000_000_000_000, s: 'T' },   // 10^13
-    { v: 1_000_000_000_000, s: 'G' },    // 10^12
-    { v: 1_000_000_000, s: 'B' },        // 10^9
-    { v: 1_000_000, s: 'M' },            // 10^6
-    { v: 1_000, s: 'K' }                 // 10^3
+    { v: 1_000_000_000_000_000, s: 'P' },
+    { v: 10_000_000_000_000, s: 'T' },
+    { v: 1_000_000_000_000, s: 'G' },
+    { v: 1_000_000_000, s: 'B' },
+    { v: 1_000_000, s: 'M' },
+    { v: 1_000, s: 'K' }
   ];
 
   for (const u of units) {
@@ -132,15 +125,14 @@ const SciFiConflictSimulator = () => {
   const [activeEvent, setActiveEvent] = useState({ civ1: null, civ2: null });
 
   const addEvent = useCallback((message, t) => {
-    setEvents(prev => [{time: t, message}, ...prev.slice(0, 9)]);
+    setEvents(prev => [{ time: t, message }, ...prev]); // 더 이상 자르지 않음
   }, []);
 
-  // 일시정지(PAUSE) 시에는 현재 상태를 유지하고,
-  // 아직 시뮬레이션을 시작하지 않았을 때(time === 0)에만 초기값을 civ 상태에 동기화
+  // PAUSE 시 상태 유지, time === 0 일 때만 초기값 동기화
   useEffect(() => {
     if (!isRunning && time === 0) {
-        setCiv1(initialCiv1);
-        setCiv2(initialCiv2);
+      setCiv1(initialCiv1);
+      setCiv2(initialCiv2);
     }
   }, [isRunning, time, initialCiv1, initialCiv2]);
 
@@ -174,11 +166,10 @@ const SciFiConflictSimulator = () => {
     setIsRunning(true);
   }, [civ1, civ2]);
 
-  // 동적 최소 군사력
   const calculateBaseMilitary = useCallback((civ) => {
-    const populationBase = civ.population / 100;        // 100명당 1
-    const resourceBase = civ.resources * 0.005;         // 1000자원당 5
-    const techFactor = 1 + (civ.technology / 500);      // 500 tech 당 +1배
+    const populationBase = civ.population / 100;
+    const resourceBase = civ.resources * 0.005;
+    const techFactor = 1 + (civ.technology / 500);
 
     const rawBaseStrength = (populationBase + resourceBase) * techFactor;
     const minFloor = 5;
@@ -204,32 +195,26 @@ const SciFiConflictSimulator = () => {
         return false;
       };
 
-      // === 핵심: 개별 문명 업데이트 함수 ===
       const updateCiv = (prev, other, currentEvent) => {
         if (prev.population <= 0) return { ...prev, population: 0, military: 0, morale: 0 };
         
-        let newCiv = {...prev};
+        let newCiv = { ...prev };
         
-        // 1. Instinct Factor Calculation (사용자 설정 + 동적 상황) - UPDATED to use helper
         const { survivalInstinct, developmentDesire } = calculateInstinctFactors(prev);
         
-        // Store calculated factors for history/charts
         newCiv.runtimeSurvivalInstinct = survivalInstinct;
         newCiv.runtimeDevelopmentDesire = developmentDesire;
 
-        // 2. Technological Singularity Check (based on sustained tech growth speed)
+        // --- 특이점 로직 (완화된 버전) ---
         const lastTech = prev.lastTech ?? prev.technology;
         const techGrowthRate = prev.technology - lastTech;
 
         let fastTechStreak = prev.fastTechStreak ?? 0;
-        // 기술적 특이점 판정 기준을 더 엄격하게 조정
-        // - 성장률 기준 상향: 최소 +200 또는 현재 기술력의 15% 이상
-        const growthThreshold = Math.max(200, prev.technology * 0.15);
+        const growthThreshold = Math.max(120, prev.technology * 0.08); // 완화
 
         if (techGrowthRate > growthThreshold) {
           fastTechStreak += 1;
         } else {
-          // 잠깐 속도가 줄어들면 연속 카운트를 서서히 감소
           fastTechStreak = Math.max(0, fastTechStreak - 1);
         }
 
@@ -238,10 +223,9 @@ const SciFiConflictSimulator = () => {
         newCiv.lastTech = prev.technology;
 
         if (!prev.isSingularity) {
-          // 특이점 진입 조건 대폭 강화
-          const hasHighBaseTech = prev.technology > 4000;   // 기술력 요구치 상향
-          const hasEnoughEnergy = prev.energy > 2500;        // 에너지 요구치 상향
-          const hasSustainedFastGrowth = fastTechStreak >= 50; // 연속 고성장 턴 수 상향
+          const hasHighBaseTech = prev.technology > 2500;
+          const hasEnoughEnergy = prev.energy > 1500;
+          const hasSustainedFastGrowth = fastTechStreak >= 25;
 
           if (hasHighBaseTech && hasEnoughEnergy && hasSustainedFastGrowth) {
             newCiv.isSingularity = true;
@@ -254,108 +238,117 @@ const SciFiConflictSimulator = () => {
           newCiv.isSingularity = true;
         }
 
-        // 3. Base Stat Calculation & Instinct Application
-        
-        // 싱귤래리티/인구 기반 성장 부스트 (Singularity/Population Based Growth Boost)
+        // --- 기본 성장/자원/에너지 계산 ---
         const growthMultiplier = newCiv.isSingularity ? 5.0 : 1.0;
-        const popGrowthFactor = Math.min(2.0, prev.resources / 800); 
+        const popGrowthFactor = Math.min(2.0, prev.resources / 800);
         const totalGrowthFactor = growthMultiplier * popGrowthFactor;
 
-        // 인구 성장: Development Desire와 사기 반영
         let popGrowth = prev.population * 0.008 * popGrowthFactor * (1 - prev.population / 10000) * growthMultiplier * developmentDesire * (prev.morale / 80);
         
-        // 기술 성장: Development Desire와 에너지 반영
         let techGrowth = (0.3 + (prev.energy / 500)) * totalGrowthFactor * developmentDesire; 
         
-        // 자원 수급: Development Desire 반영
         let resourceGain = (prev.population * 0.05 + prev.technology * 0.2) * totalGrowthFactor * developmentDesire;
         
-        // 소행성 채굴: RECONSTRUCTION 시기, 자원이 고갈 상태이고 충분한 기술력을 보유한 경우
-        // 자원이 0에 가깝고 기술력이 높으면, 우주 자원 채굴로 추가 자원 확보
-        const ASTEROID_TECH_THRESHOLD = 800;
-        if (currentEvent && currentEvent.type === 'RECON' && prev.technology >= ASTEROID_TECH_THRESHOLD && prev.resources <= 500) {
-          // 기술력이 높을수록 채굴 효율 증가 (RECON 기간 동안 거의 매 턴 발생)
-          const miningEfficiency = 0.12;
-          const asteroidGain = Math.max(0, (prev.technology - ASTEROID_TECH_THRESHOLD) * miningEfficiency);
-          resourceGain += asteroidGain;
-          
-          // 최초 한 번만 로그 출력
-          if (!prev.hasAsteroidMining) {
-            addEvent(
-              `[ASTEROID MINING] ${prev.name} turns to asteroid belts during reconstruction. Space-based resources supplement the exhausted world.`,
-              nextTime
-            );
-          }
-          newCiv.hasAsteroidMining = true;
-        }
-
-        // 자원 소모: Survival Instinct로 효율 개선 (본능이 강할수록 소모 감소)
         const baseResourceCost = prev.military * 0.3 + prev.population * 0.02;
         const resourceCost = baseResourceCost / Math.pow(survivalInstinct, 0.5);
 
-        // 평화 시 군사력 및 사기 증진
         let militaryGain = 0;
         let moraleBoost = 0;
         if (warStatus === 'PEACE') {
-          // 군사력 증강: Survival Instinct 반영
-          militaryGain = (prev.technology * 0.05 + prev.resources * 0.005 + prev.aggressiveness * 0.05) * popGrowthFactor * survivalInstinct; 
+          militaryGain = (prev.technology * 0.05 + prev.resources * 0.005 + prev.aggressiveness * 0.05) * popGrowthFactor * survivalInstinct;
           moraleBoost = 0.2 + (prev.diplomacy * 0.01);
         }
-        
-        // NEW: Energy Growth (에너지 생산 로직 개선 및 Development Desire 반영)
+
         const baseEnergyGrowth = (prev.technology * 0.25) + (prev.resources * 0.005);
         let energyGain = baseEnergyGrowth * developmentDesire * totalGrowthFactor; 
-        
-        // 4. Apply Event Modifiers (CRISIS / BOOM / RECONSTRUCTION)
-        if (currentEvent) {
-            if (currentEvent.type === 'CRISIS') {
-                // Severe penalty
-                popGrowth *= 0.1; 
-                techGrowth *= 0.2; 
-                militaryGain *= 0.1;
-                energyGain *= 0.1; // Energy also hit hard
-                
-                // Additional passive drain during crisis
-                newCiv.resources = Math.max(0, newCiv.resources - 30); // Immediate resource cost
-                newCiv.morale = Math.max(0, prev.morale - 1.0); // Morale drain
-            } else if (currentEvent.type === 'BOOM') {
-                // Significant boost (generic golden age)
-                const boomMultiplier = 2.0;
-                popGrowth *= boomMultiplier;
-                resourceGain *= boomMultiplier;
-                militaryGain *= 2.0; 
-                techGrowth *= 1.5; 
-                energyGain *= 1.5; // Energy gets a boost
-                moraleBoost += 0.5;
-            } else if (currentEvent.type === 'RECON') {
-                // Post-war reconstruction boom
-                const reconGrowthBoost = 1.3;
-                const reconResourceBoost = 1.5;
-                const reconEnergyBoost = 2.2;
 
-                popGrowth *= 1.2;
-                resourceGain *= reconResourceBoost;
-                techGrowth *= reconGrowthBoost;
-                energyGain *= reconEnergyBoost;
-                militaryGain *= 1.3;
-                moraleBoost += 0.7;
-            }
+        // --- 소행성 채굴 로직 (지속 채굴) ---
+        const ASTEROID_TECH_THRESHOLD = 800;
+        const ASTEROID_START_RESOURCE = 1200;
+        const ASTEROID_STOP_RESOURCE = 3000;
+        let asteroidActive = prev.isAsteroidMining || false;
+
+        // 시작 조건: 기술력 충분 + 자원이 일정 이하
+        if (!asteroidActive && prev.technology >= ASTEROID_TECH_THRESHOLD && prev.resources < ASTEROID_START_RESOURCE) {
+          asteroidActive = true;
+          addEvent(
+            `[ASTEROID MINING START] ${prev.name} deploys orbital mining fleets to nearby asteroid belts.`,
+            nextTime
+          );
         }
-        
-        // Apply calculated growth/cost
+
+        // 활성 상태라면 매 tick 채굴
+        if (asteroidActive) {
+          const miningEfficiency = 0.35;
+          const techFactor = Math.max(0, prev.technology - ASTEROID_TECH_THRESHOLD);
+          const asteroidGain = techFactor * miningEfficiency;
+          resourceGain += asteroidGain;
+
+          if (nextTime % 40 === 0) {
+            addEvent(
+              `[ASTEROID MINING] ${prev.name} continuously harvests off-world resources (+${Math.round(asteroidGain)} per tick).`,
+              nextTime
+            );
+          }
+
+          const expectedDelta = resourceGain - resourceCost;
+          if (prev.resources >= ASTEROID_STOP_RESOURCE && expectedDelta > 0) {
+            asteroidActive = false;
+            addEvent(
+              `[ASTEROID MINING END] ${prev.name} scales back asteroid operations as domestic reserves stabilize.`,
+              nextTime
+            );
+          }
+        }
+
+        newCiv.isAsteroidMining = asteroidActive;
+
+        // 이벤트 효과 적용
+        if (currentEvent) {
+          if (currentEvent.type === 'CRISIS') {
+            popGrowth *= 0.1; 
+            techGrowth *= 0.2; 
+            militaryGain *= 0.1;
+            energyGain *= 0.1;
+            
+            newCiv.resources = Math.max(0, (newCiv.resources ?? prev.resources) - 30);
+            newCiv.morale = Math.max(0, prev.morale - 1.0);
+          } else if (currentEvent.type === 'BOOM') {
+            const boomMultiplier = 2.0;
+            popGrowth *= boomMultiplier;
+            resourceGain *= boomMultiplier;
+            militaryGain *= 2.0; 
+            techGrowth *= 1.5; 
+            energyGain *= 1.5;
+            moraleBoost += 0.5;
+          } else if (currentEvent.type === 'RECON') {
+            const reconGrowthBoost = 1.3;
+            const reconResourceBoost = 1.5;
+            const reconEnergyBoost = 2.2;
+
+            popGrowth *= 1.2;
+            resourceGain *= reconResourceBoost;
+            techGrowth *= reconGrowthBoost;
+            energyGain *= reconEnergyBoost;
+            militaryGain *= 1.3;
+            moraleBoost += 0.7;
+          }
+        }
+
+        // 성장 적용
         newCiv.population = Math.max(0, prev.population + popGrowth);
         newCiv.technology = prev.technology + techGrowth;
-        newCiv.resources = Math.max(0, newCiv.resources + resourceGain - resourceCost);
-        
-        // 에너지 적용: 생산 - 인구 부양 비용
+
+        const baseResources = (newCiv.resources ?? prev.resources);
+        newCiv.resources = Math.max(0, baseResources + resourceGain - resourceCost);
+
         const basePopEnergyCost = prev.population * 0.01;
-        // 재건기에는 인구가 먹는 에너지 비용을 완화 (회복 모드 느낌)
         const popEnergyCost = currentEvent?.type === 'RECON' ? basePopEnergyCost * 0.5 : basePopEnergyCost;
 
         newCiv.energy = prev.energy + energyGain - popEnergyCost;
-        newCiv.energy = Math.max(0, newCiv.energy); // 에너지 최소 0 유지
+        newCiv.energy = Math.max(0, newCiv.energy);
         
-        // 5. War Effects
+        // 전쟁 효과
         if (warStatus === 'WAR') {
           const techDifference = other.technology - prev.technology;
           const powerRatio = other.military / (prev.military + 1);
@@ -366,25 +359,23 @@ const SciFiConflictSimulator = () => {
 
           const militaryLoss = Math.max(0, baseLoss * lossModifier + techPenalty);
           
-          // 동적 최소 군사력 적용
           const dynamicMinMilitary = calculateBaseMilitary(prev);
           newCiv.military = Math.max(dynamicMinMilitary, prev.military - militaryLoss);
           
           const popLoss = Math.random() * 2.5 * lossModifier; 
-          newCiv.population = Math.max(0, prev.population - popLoss);
+          newCiv.population = Math.max(0, newCiv.population - popLoss);
           
           newCiv.resources = Math.max(0, newCiv.resources - (20 + (popLoss * 5))); 
           
           const moraleHit = 1.0 + popLoss * 0.1;
-          newCiv.morale = Math.max(0, prev.morale - moraleHit);
+          newCiv.morale = Math.max(0, (newCiv.morale ?? prev.morale) - moraleHit);
           
           if (nextTime % 15 === 0 && militaryLoss > 10) {
             addEvent(`[LOSSES] ${prev.name} suffered heavy military losses (${Math.round(militaryLoss)} units). Stability declining.`, nextTime);
           }
         } else {
-            // Peace time: apply military gain and morale boost
-            newCiv.military = prev.military + militaryGain;
-            newCiv.morale = Math.min(100, prev.morale + moraleBoost);
+          newCiv.military = prev.military + militaryGain;
+          newCiv.morale = Math.min(100, (newCiv.morale ?? prev.morale) + moraleBoost);
         }
         
         newCiv.morale = Math.min(100, Math.max(0, newCiv.morale));
@@ -393,14 +384,12 @@ const SciFiConflictSimulator = () => {
         return newCiv;
       };
 
-      // 이벤트 상태 업데이트
       const updateEventState = (civKey, civ) => {
         let currentEvent = activeEvent[civKey];
         let newEvent = currentEvent;
 
         if (currentEvent) {
           if (currentEvent.type === 'RECON') {
-            // RECON 중간 단계 로그들
             if (currentEvent.duration === 60) {
               addEvent(`[RECONSTRUCTION] ${civ.name}: civil infrastructure partially restored. Factories restart under tight rationing.`, nextTime);
             } else if (currentEvent.duration === 50) {
@@ -435,14 +424,13 @@ const SciFiConflictSimulator = () => {
       const event2 = updateEventState('civ2', civ2);
       setActiveEvent({ civ1: event1, civ2: event2 });
 
-      // 실제 civ 값 갱신
       const newCiv1 = updateCiv(civ1, civ2, event1);
       const newCiv2 = updateCiv(civ2, civ1, event2);
 
       setCiv1(newCiv1);
       setCiv2(newCiv2);
 
-      // 자원 교환 (평화 시)
+      // 자원 교환
       const exchangeResources = (c1, c2) => {
         if (warStatus === 'PEACE' && c1.population > 0 && c2.population > 0) {
           const diplomacyFactor = (c1.diplomacy + c2.diplomacy) / 200; 
@@ -462,14 +450,14 @@ const SciFiConflictSimulator = () => {
           const techShare = 0.05 * diplomacyFactor;
 
           setCiv1(prev => ({
-              ...prev, 
-              resources: prev.resources + tradeC1,
-              technology: prev.technology + (c2.technology > prev.technology ? techShare : 0)
+            ...prev, 
+            resources: prev.resources + tradeC1,
+            technology: prev.technology + (c2.technology > prev.technology ? techShare : 0)
           }));
           setCiv2(prev => ({
-              ...prev, 
-              resources: prev.resources + tradeC2,
-              technology: prev.technology + (c1.technology > prev.technology ? techShare : 0)
+            ...prev, 
+            resources: prev.resources + tradeC2,
+            technology: prev.technology + (c1.technology > prev.technology ? techShare : 0)
           }));
 
           if ((tradeC1 !== 0 || tradeC2 !== 0) && nextTime % 50 === 0) {
@@ -565,7 +553,7 @@ const SciFiConflictSimulator = () => {
         }
       }
 
-      // 전쟁 중 발사체 생성
+      // 전쟁 중 발사체
       if (warStatus === 'WAR' && isRunning) {
         const FIRE_RATE = 5; 
 
@@ -616,7 +604,7 @@ const SciFiConflictSimulator = () => {
         }
       }
 
-      // 히스토리 저장 (그래프용)
+      // 히스토리 업데이트
       setHistory(prev => [...prev, {
         time: nextTime,
         civ1Pop: newCiv1.population,
@@ -642,7 +630,7 @@ const SciFiConflictSimulator = () => {
     return () => clearInterval(interval);
   }, [isRunning, time, speed, civ1, civ2, warStatus, addEvent, extinctCiv, calculateBaseMilitary, activeEvent]);
 
-  // 발사체 이동: 배속(speed)에 비례
+  // 발사체 이동 (배속 반영)
   useEffect(() => {
     if (!isRunning) return;
 
@@ -659,8 +647,6 @@ const SciFiConflictSimulator = () => {
 
     return () => clearInterval(interval);
   }, [isRunning, speed]);
-
-  // ---- UI용 컴포넌트들 ----
 
   const StatBar = ({ label, value, max, color, icon: Icon }) => {
     const displayValue = Math.max(0, value);
@@ -968,7 +954,6 @@ const SciFiConflictSimulator = () => {
     );
   };
 
-  // ---- 그래프용 최대값 계산 ----
   const maxPop = Math.max(
     ...history.map(h => Math.max(h.civ1Pop, h.civ2Pop)),
     civ1.population,
@@ -1016,7 +1001,6 @@ const SciFiConflictSimulator = () => {
     3.5
   );
 
-  // ---- 메인 렌더 ----
   return (
     <div className="w-full max-w-7xl mx-auto p-6 bg-slate-900 min-h-screen font-sans text-gray-100">
       <h1 className="text-4xl font-extrabold text-center mb-8 tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-500">
@@ -1080,7 +1064,6 @@ const SciFiConflictSimulator = () => {
         )}
       </div>
 
-      {/* 메인 비주얼 영역 */}
       <div className="bg-slate-900 rounded-xl shadow-2xl p-8 mb-6 relative overflow-hidden border-4 border-slate-700/50" style={{height: '350px'}}>
         <div className="absolute inset-0 opacity-20 pointer-events-none">
           {[...Array(100)].map((_, i) => (
@@ -1176,7 +1159,6 @@ const SciFiConflictSimulator = () => {
         </div>
       </div>
 
-      {/* 좌우 패널 */}
       <div className="grid grid-cols-2 gap-6 mb-6">
         <CivPanel 
           initialCiv={initialCiv1} 
@@ -1198,7 +1180,6 @@ const SciFiConflictSimulator = () => {
         />
       </div>
 
-      {/* 그래프 섹션 */}
       {history.length > 0 && (
         <div className="bg-slate-800/80 rounded-xl shadow-lg p-6 mb-6 border-2 border-slate-700 backdrop-blur-sm">
           <h2 className="text-2xl font-bold mb-6 text-white border-b border-slate-700 pb-2">Trend Analysis (All Metrics)</h2>
