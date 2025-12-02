@@ -341,7 +341,6 @@ const SciFiConflictSimulator = () => {
           prev.population *
           0.008 *
           popGrowthFactor *
-          (1 - prev.population / 10000) *
           growthMultiplier *
           developmentDesire *
           (prev.morale / 80);
@@ -489,12 +488,7 @@ const SciFiConflictSimulator = () => {
           newCiv.resources = 0;
         }
 
-        // 전체 자원 상한
-        const MAX_RESOURCES = 100000;
-        newCiv.resources = Math.min(
-          MAX_RESOURCES,
-          Math.max(0, newCiv.resources),
-        );
+        newCiv.resources = Math.max(0, newCiv.resources);
 
         const basePopEnergyCost = prev.population * 0.01;
         const popEnergyCost =
