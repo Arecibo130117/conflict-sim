@@ -961,6 +961,7 @@ const SciFiConflictSimulator = () => {
     );
   };
 
+  // ===== 수정된: 초기값 입력용 컴포넌트 (로컬 문자열 상태 사용) =====
   const EditableBaseStats = ({ initialCiv, setInitialCiv, disabled }) => {
     const fields = [
       { label: 'Initial Population', key: 'population' },
@@ -973,13 +974,55 @@ const SciFiConflictSimulator = () => {
       { label: 'Base Development Desire', key: 'baseDevelopmentDesire' },
     ];
 
+    // 입력창에 보여줄 문자열 상태
+    const [localValues, setLocalValues] = useState(() => {
+      const obj = {};
+      fields.forEach((f) => {
+        const v = initialCiv[f.key] ?? 0;
+        obj[f.key] = String(Math.round(v));
+      });
+      return obj;
+    });
+
+    // initialCiv가 리셋될 때(Reset 버튼 등) 입력창도 동기화
+    useEffect(() => {
+      setLocalValues(() => {
+        const obj = {};
+        fields.forEach((f) => {
+          const v = initialCiv[f.key] ?? 0;
+          obj[f.key] = String(Math.round(v));
+        });
+        return obj;
+      });
+    }, [initialCiv]);
+
     const handleInitialInputChange = (e, key) => {
       const rawValue = e.target.value;
+
+      // 화면에 보이는 값은 문자열 그대로 유지
+      setLocalValues((prev) => ({
+        ...prev,
+        [key]: rawValue,
+      }));
+
+      // 빈 문자열이면 일단 0으로 취급
+      if (rawValue.trim() === '') {
+        setInitialCiv((prev) => ({
+          ...prev,
+          [key]: 0,
+        }));
+        return;
+      }
+
       const numberValue = parseFloat(rawValue);
+      if (isNaN(numberValue)) {
+        // 숫자로 파싱 안 되면 상태만 업데이트하고, 숫자 값은 그대로 둠
+        return;
+      }
 
-      let valueToSet =
-        rawValue === '' || isNaN(numberValue) ? 0 : numberValue;
+      let valueToSet = numberValue;
 
+      // 퍼센트(0~100)로 관리하는 항목들
       if (
         key.includes('Instinct') ||
         key.includes('Desire') ||
@@ -1007,7 +1050,8 @@ const SciFiConflictSimulator = () => {
               </label>
               <input
                 type="number"
-                value={Math.round(initialCiv[field.key]).toString()}
+                inputMode="numeric"
+                value={localValues[field.key] ?? ''}
                 onChange={(e) => handleInitialInputChange(e, field.key)}
                 disabled={disabled}
                 className="w-full border border-gray-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 bg-slate-700 text-white disabled:opacity-50"
@@ -1031,9 +1075,37 @@ const SciFiConflictSimulator = () => {
     const inputDisabled = disabled || isRunning;
     const dynamicFloor = calculateBaseMilitary(runtimeCiv);
 
+    // 정책 입력용 로컬 상태 (공격성/외교)
+    const [policyValues, setPolicyValues] = useState({
+      aggressiveness: String(Math.round(initialCiv.aggressiveness ?? 0)),
+      diplomacy: String(Math.round(initialCiv.diplomacy ?? 0)),
+    });
+
+    useEffect(() => {
+      setPolicyValues({
+        aggressiveness: String(Math.round(initialCiv.aggressiveness ?? 0)),
+        diplomacy: String(Math.round(initialCiv.diplomacy ?? 0)),
+      });
+    }, [initialCiv.aggressiveness, initialCiv.diplomacy]);
+
     const handlePolicyChange = (e, key) => {
-      const value = Math.min(100, Math.max(0, Number(e.target.value)));
-      setInitialCiv((prev) => ({ ...prev, [key]: value }));
+      const raw = e.target.value;
+
+      setPolicyValues((prev) => ({
+        ...prev,
+        [key]: raw,
+      }));
+
+      if (raw.trim() === '') {
+        setInitialCiv((prev) => ({ ...prev, [key]: 0 }));
+        return;
+      }
+
+      const num = Number(raw);
+      if (isNaN(num)) return;
+
+      const clamped = Math.min(100, Math.max(0, num));
+      setInitialCiv((prev) => ({ ...prev, [key]: clamped }));
     };
 
     const eventStatus = activeEvent;
@@ -1123,8 +1195,9 @@ const SciFiConflictSimulator = () => {
               color={initialCiv.color}
               icon={Zap}
             />
+            {/* 여기서 Min 표시 제거 */}
             <StatBar
-              label={`Military (Min: ${formatNumber(dynamicFloor)})`}
+              label="Military"
               value={runtimeCiv.military}
               max={1000}
               color={initialCiv.color}
@@ -1144,7 +1217,8 @@ const SciFiConflictSimulator = () => {
               </label>
               <input
                 type="number"
-                value={Math.round(initialCiv.aggressiveness)}
+                inputMode="numeric"
+                value={policyValues.aggressiveness}
                 onChange={(e) => handlePolicyChange(e, 'aggressiveness')}
                 disabled={inputDisabled}
                 className="w-full border border-gray-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 bg-slate-700 text-white disabled:opacity-50"
@@ -1156,7 +1230,8 @@ const SciFiConflictSimulator = () => {
               </label>
               <input
                 type="number"
-                value={Math.round(initialCiv.diplomacy)}
+                inputMode="numeric"
+                value={policyValues.diplomacy}
                 onChange={(e) => handlePolicyChange(e, 'diplomacy')}
                 disabled={inputDisabled}
                 className="w-full border border-gray-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 bg-slate-700/50 text-white disabled:opacity-50"
