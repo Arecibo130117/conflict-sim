@@ -340,6 +340,7 @@ const SciFiConflictSimulator = () => {
         let popGrowth =
           prev.population *
           0.008 *
+          (1 - prev.population / 10000000000) *
           popGrowthFactor *
           growthMultiplier *
           developmentDesire *
