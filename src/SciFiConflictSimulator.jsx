@@ -148,11 +148,10 @@ const SciFiConflictSimulator = () => {
   const [activeEvent, setActiveEvent] = useState({ civ1: null, civ2: null });
 
   const addEvent = useCallback((message, t) => {
-    // 로그 누적 (자르지 않음)
     setEvents((prev) => [{ time: t, message }, ...prev]);
   }, []);
 
-  // PAUSE 상태 + time 0 에서만 초기값 재동기화
+  // PAUSE + time 0에서만 초기값 동기화
   useEffect(() => {
     if (!isRunning && time === 0) {
       setCiv1(initialCiv1);
@@ -232,7 +231,6 @@ const SciFiConflictSimulator = () => {
         return false;
       };
 
-      // 이벤트 상태 업데이트
       const updateEventState = (civKey, civ) => {
         let currentEvent = activeEvent[civKey];
         let newEvent = currentEvent;
@@ -283,12 +281,10 @@ const SciFiConflictSimulator = () => {
             );
           }
         }
+
         return newEvent;
       };
 
-      // ==========================
-      // updateCiv – 핵심 시뮬레이션 로직
-      // ==========================
       const updateCiv = (prev, other, currentEvent) => {
         if (prev.population <= 0) {
           return { ...prev, population: 0, military: 0, morale: 0 };
@@ -302,7 +298,7 @@ const SciFiConflictSimulator = () => {
         newCiv.runtimeSurvivalInstinct = survivalInstinct;
         newCiv.runtimeDevelopmentDesire = developmentDesire;
 
-        // 1. 특이점 로직 – 조금 더 늦게
+        // 1. 특이점 로직
         const lastTech = prev.lastTech ?? prev.technology;
         const techGrowthRate = prev.technology - lastTech;
 
@@ -320,10 +316,9 @@ const SciFiConflictSimulator = () => {
         newCiv.lastTech = prev.technology;
 
         if (!prev.isSingularity) {
-          // ★ 이전보다 조금 더 늦게 터지도록
-          const hasHighBaseTech = prev.technology > 4800; // 4500 → 4800
-          const hasEnoughEnergy = prev.energy > 3200; // 2800 → 3200
-          const hasSustainedFastGrowth = fastTechStreak >= 70; // 60 → 70
+          const hasHighBaseTech = prev.technology > 4800;
+          const hasEnoughEnergy = prev.energy > 3200;
+          const hasSustainedFastGrowth = fastTechStreak >= 70;
 
           if (hasHighBaseTech && hasEnoughEnergy && hasSustainedFastGrowth) {
             newCiv.isSingularity = true;
@@ -411,7 +406,6 @@ const SciFiConflictSimulator = () => {
           const asteroidGain = Math.max(50, baseAsteroidGain);
 
           resourceGain += asteroidGain;
-
           resourceCost *= 0.4;
 
           if (nextTime % 20 === 0) {
@@ -475,12 +469,32 @@ const SciFiConflictSimulator = () => {
         newCiv.population = Math.max(0, prev.population + popGrowth);
         newCiv.technology = prev.technology + techGrowth;
 
+        // === 자원 폭주 방지: 틱당 증감 상한 ===
+        {
+          const currentResources = newCiv.resources ?? prev.resources;
+          const maxGainPerTick = Math.max(2000, currentResources * 0.5);
+          if (resourceGain > maxGainPerTick) {
+            resourceGain = maxGainPerTick;
+          }
+          const maxLossPerTick = Math.max(2000, currentResources * 0.7);
+          if (resourceCost > maxLossPerTick) {
+            resourceCost = maxLossPerTick;
+          }
+        }
+
         const baseResources = newCiv.resources ?? prev.resources;
         newCiv.resources = baseResources + resourceGain - resourceCost;
+
         if (!Number.isFinite(newCiv.resources)) {
           newCiv.resources = 0;
         }
-        newCiv.resources = Math.max(0, newCiv.resources);
+
+        // 전체 자원 상한
+        const MAX_RESOURCES = 100000;
+        newCiv.resources = Math.min(
+          MAX_RESOURCES,
+          Math.max(0, newCiv.resources),
+        );
 
         const basePopEnergyCost = prev.population * 0.01;
         const popEnergyCost =
@@ -541,17 +555,16 @@ const SciFiConflictSimulator = () => {
           );
         }
 
-        // 7. 자원 부족 시 인구/군대 줄이기 (부족할수록 더 세게, 하지만 완만하게)
+        // 7. 자원 부족 시 인구/군사 감소 (완만한 형태)
         const RESOURCE_CRISIS_THRESHOLD = 200;
 
         if (newCiv.resources < RESOURCE_CRISIS_THRESHOLD) {
           const shortageRatio =
             (RESOURCE_CRISIS_THRESHOLD - newCiv.resources) /
-            RESOURCE_CRISIS_THRESHOLD; // 0~1
+            RESOURCE_CRISIS_THRESHOLD;
 
-          // 예전보다 한 단계 완만한 감소율
-          const starvationRate = 0.005 * (1 + 3 * shortageRatio); // 0.5% ~ ~2%
-          const demobilizationRate = 0.02 * (1 + 3 * shortageRatio); // 2% ~ ~8%
+          const starvationRate = 0.005 * (1 + 3 * shortageRatio);
+          const demobilizationRate = 0.02 * (1 + 3 * shortageRatio);
 
           const starvationLoss = newCiv.population * starvationRate;
           const demobilizationLoss = newCiv.military * demobilizationRate;
@@ -566,7 +579,7 @@ const SciFiConflictSimulator = () => {
               newCiv.military - demobilizationLoss,
             );
 
-            const moraleDrop = 1.5 * (1 + 2.5 * shortageRatio); // 약 1.5~5 정도
+            const moraleDrop = 1.5 * (1 + 2.5 * shortageRatio);
             newCiv.morale = Math.max(0, newCiv.morale - moraleDrop);
 
             if (nextTime % 12 === 0) {
@@ -582,7 +595,7 @@ const SciFiConflictSimulator = () => {
           }
         }
 
-        // 8. 최종 클램핑
+        // 8. 클램핑
         newCiv.morale = Math.min(100, Math.max(0, newCiv.morale));
         newCiv.military = Math.max(0, newCiv.military);
 
@@ -816,7 +829,7 @@ const SciFiConflictSimulator = () => {
         }
       }
 
-      // 히스토리 업데이트 (최근 100틱만, 표시용 스무딩)
+      // 히스토리 업데이트 (최근 100틱, 스무딩)
       setHistory((prev) => {
         const rawEntry = {
           time: nextTime,
@@ -838,7 +851,7 @@ const SciFiConflictSimulator = () => {
           civ2DevelopmentDesire: newCiv2.runtimeDevelopmentDesire,
         };
 
-        const alpha = 0.5; // 0.5: 이전 값과 절반씩 섞기
+        const alpha = 0.5;
         const last = prev[prev.length - 1];
 
         const smoothedEntry =
@@ -908,7 +921,7 @@ const SciFiConflictSimulator = () => {
     activeEvent,
   ]);
 
-  // 발사체 이동 (배속 반영)
+  // 발사체 이동
   useEffect(() => {
     if (!isRunning) return;
 
@@ -961,7 +974,7 @@ const SciFiConflictSimulator = () => {
     );
   };
 
-  // ===== 수정된: 초기값 입력용 컴포넌트 (로컬 문자열 상태 사용) =====
+  // ===== 수정된: 초기값 입력용 컴포넌트 (문자열 + onBlur 확정) =====
   const EditableBaseStats = ({ initialCiv, setInitialCiv, disabled }) => {
     const fields = [
       { label: 'Initial Population', key: 'population' },
@@ -974,7 +987,6 @@ const SciFiConflictSimulator = () => {
       { label: 'Base Development Desire', key: 'baseDevelopmentDesire' },
     ];
 
-    // 입력창에 보여줄 문자열 상태
     const [localValues, setLocalValues] = useState(() => {
       const obj = {};
       fields.forEach((f) => {
@@ -984,49 +996,49 @@ const SciFiConflictSimulator = () => {
       return obj;
     });
 
-    // initialCiv가 리셋될 때(Reset 버튼 등) 입력창도 동기화
     useEffect(() => {
-      setLocalValues(() => {
-        const obj = {};
-        fields.forEach((f) => {
-          const v = initialCiv[f.key] ?? 0;
-          obj[f.key] = String(Math.round(v));
-        });
-        return obj;
+      const obj = {};
+      fields.forEach((f) => {
+        const v = initialCiv[f.key] ?? 0;
+        obj[f.key] = String(Math.round(v));
       });
+      setLocalValues(obj);
     }, [initialCiv]);
 
-    const handleInitialInputChange = (e, key) => {
-      const rawValue = e.target.value;
-
-      // 화면에 보이는 값은 문자열 그대로 유지
+    const handleLocalChange = (e, key) => {
+      const raw = e.target.value;
       setLocalValues((prev) => ({
         ...prev,
-        [key]: rawValue,
+        [key]: raw,
       }));
+    };
 
-      // 빈 문자열이면 일단 0으로 취급
-      if (rawValue.trim() === '') {
-        setInitialCiv((prev) => ({
+    const commitValue = (key) => {
+      const rawValue = (localValues[key] ?? '').trim();
+
+      if (rawValue === '') {
+        setInitialCiv((prev) => ({ ...prev, [key]: 0 }));
+        setLocalValues((prev) => ({ ...prev, [key]: '0' }));
+        return;
+      }
+
+      const cleaned = rawValue.replace(/[^0-9.\-]/g, '');
+      const parsed = Number(cleaned);
+      if (Number.isNaN(parsed)) {
+        const v = initialCiv[key] ?? 0;
+        setLocalValues((prev) => ({
           ...prev,
-          [key]: 0,
+          [key]: String(Math.round(v)),
         }));
         return;
       }
 
-      const numberValue = parseFloat(rawValue);
-      if (isNaN(numberValue)) {
-        // 숫자로 파싱 안 되면 상태만 업데이트하고, 숫자 값은 그대로 둠
-        return;
-      }
+      let valueToSet = parsed;
 
-      let valueToSet = numberValue;
-
-      // 퍼센트(0~100)로 관리하는 항목들
       if (
+        key === 'morale' ||
         key.includes('Instinct') ||
-        key.includes('Desire') ||
-        key === 'morale'
+        key.includes('Desire')
       ) {
         valueToSet = Math.min(100, Math.max(0, valueToSet));
       }
@@ -1034,6 +1046,10 @@ const SciFiConflictSimulator = () => {
       setInitialCiv((prev) => ({
         ...prev,
         [key]: valueToSet,
+      }));
+      setLocalValues((prev) => ({
+        ...prev,
+        [key]: String(Math.round(valueToSet)),
       }));
     };
 
@@ -1049,10 +1065,11 @@ const SciFiConflictSimulator = () => {
                 {field.label}
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
                 value={localValues[field.key] ?? ''}
-                onChange={(e) => handleInitialInputChange(e, field.key)}
+                onChange={(e) => handleLocalChange(e, field.key)}
+                onBlur={() => commitValue(field.key)}
                 disabled={disabled}
                 className="w-full border border-gray-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 bg-slate-700 text-white disabled:opacity-50"
               />
@@ -1075,7 +1092,7 @@ const SciFiConflictSimulator = () => {
     const inputDisabled = disabled || isRunning;
     const dynamicFloor = calculateBaseMilitary(runtimeCiv);
 
-    // 정책 입력용 로컬 상태 (공격성/외교)
+    // 정책 입력용 로컬 상태 (문자열)
     const [policyValues, setPolicyValues] = useState({
       aggressiveness: String(Math.round(initialCiv.aggressiveness ?? 0)),
       diplomacy: String(Math.round(initialCiv.diplomacy ?? 0)),
@@ -1088,24 +1105,37 @@ const SciFiConflictSimulator = () => {
       });
     }, [initialCiv.aggressiveness, initialCiv.diplomacy]);
 
-    const handlePolicyChange = (e, key) => {
+    const handlePolicyLocalChange = (e, key) => {
       const raw = e.target.value;
-
       setPolicyValues((prev) => ({
         ...prev,
         [key]: raw,
       }));
+    };
 
-      if (raw.trim() === '') {
+    const commitPolicy = (key) => {
+      const raw = (policyValues[key] ?? '').trim();
+      if (raw === '') {
         setInitialCiv((prev) => ({ ...prev, [key]: 0 }));
+        setPolicyValues((prev) => ({ ...prev, [key]: '0' }));
         return;
       }
-
-      const num = Number(raw);
-      if (isNaN(num)) return;
-
+      const cleaned = raw.replace(/[^0-9.\-]/g, '');
+      const num = Number(cleaned);
+      if (Number.isNaN(num)) {
+        const v = initialCiv[key] ?? 0;
+        setPolicyValues((prev) => ({
+          ...prev,
+          [key]: String(Math.round(v)),
+        }));
+        return;
+      }
       const clamped = Math.min(100, Math.max(0, num));
       setInitialCiv((prev) => ({ ...prev, [key]: clamped }));
+      setPolicyValues((prev) => ({
+        ...prev,
+        [key]: String(Math.round(clamped)),
+      }));
     };
 
     const eventStatus = activeEvent;
@@ -1195,7 +1225,7 @@ const SciFiConflictSimulator = () => {
               color={initialCiv.color}
               icon={Zap}
             />
-            {/* 여기서 Min 표시 제거 */}
+            {/* Min 표시 제거된 Military */}
             <StatBar
               label="Military"
               value={runtimeCiv.military}
@@ -1216,10 +1246,11 @@ const SciFiConflictSimulator = () => {
                 <Swords size={14} /> Aggressiveness
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
                 value={policyValues.aggressiveness}
-                onChange={(e) => handlePolicyChange(e, 'aggressiveness')}
+                onChange={(e) => handlePolicyLocalChange(e, 'aggressiveness')}
+                onBlur={() => commitPolicy('aggressiveness')}
                 disabled={inputDisabled}
                 className="w-full border border-gray-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 bg-slate-700 text-white disabled:opacity-50"
               />
@@ -1229,10 +1260,11 @@ const SciFiConflictSimulator = () => {
                 <Handshake size={14} /> Diplomacy
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="numeric"
                 value={policyValues.diplomacy}
-                onChange={(e) => handlePolicyChange(e, 'diplomacy')}
+                onChange={(e) => handlePolicyLocalChange(e, 'diplomacy')}
+                onBlur={() => commitPolicy('diplomacy')}
                 disabled={inputDisabled}
                 className="w-full border border-gray-600 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 bg-slate-700/50 text-white disabled:opacity-50"
               />
