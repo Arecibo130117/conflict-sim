@@ -305,7 +305,7 @@ const SciFiConflictSimulator = () => {
         let fastTechStreak = prev.fastTechStreak ?? 0;
 
         // 🔧 특이점 기준 더 빡세게
-        const growthThreshold = Math.max(300, prev.technology * 0.2);
+        const growthThreshold = Math.max(300, prev.technology * 0.13);
 
         if (techGrowthRate > growthThreshold) {
           fastTechStreak += 1;
