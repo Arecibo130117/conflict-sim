@@ -305,7 +305,7 @@ const SciFiConflictSimulator = () => {
         let fastTechStreak = prev.fastTechStreak ?? 0;
 
         // 🔧 특이점 기준 더 빡세게
-        const growthThreshold = Math.max(300, prev.technology * 0.07);
+        const growthThreshold = Math.max(300, prev.technology * 0.1);
 
         if (techGrowthRate > growthThreshold) {
           fastTechStreak += 1;
@@ -318,8 +318,8 @@ const SciFiConflictSimulator = () => {
         newCiv.lastTech = prev.technology;
 
         if (!prev.isSingularity) {
-          const hasHighBaseTech = prev.technology > 8000;
-          const hasEnoughEnergy = prev.energy > 5000;
+          const hasHighBaseTech = prev.technology > 10000;
+          const hasEnoughEnergy = prev.energy > 8000;
           const hasSustainedFastGrowth = fastTechStreak >= 120;
 
           if (hasHighBaseTech && hasEnoughEnergy && hasSustainedFastGrowth) {
